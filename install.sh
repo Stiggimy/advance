@@ -3,6 +3,9 @@ set -e
 
 # --- advance Installer ---
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 BIN_DIR="$HOME/.local/bin"
 MAN_DIR="$HOME/.local/share/man/man1"
 MANAGERS_DIR="$HOME/.config/advance/managers.d"
@@ -71,7 +74,7 @@ chmod +x "$BIN_DIR/advance"
 
 echo "${GREEN}[OK] Advance installed successfully!${RESET}"
 echo "   - Binary: $BIN_DIR/advance"
-echo "   - Ship Tool: $BIN_DIR/ship"
+[ -f "./ship.sh" ] && echo "   - Ship Tool: $BIN_DIR/ship"
 echo "   - Libraries: $HOME/.local/lib/advance"
 echo "   - Catalog: $HOME/.local/share/advance/catalog"
 echo "   - Manual: $MAN_DIR/advance.1"
@@ -85,6 +88,12 @@ if ! command -v checkpoint >/dev/null 2>&1; then
     echo ""
     echo "${BLUE}Quick Tip:${RESET} To install it easily, go to your checkpoint repository and run:"
     echo "           ${BOLD}./install.sh${RESET}"
+    echo ""
+fi
+
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    echo "${YELLOW}[WARN] $BIN_DIR is not in your PATH. Add this to your shell profile:${RESET}"
+    echo "       export PATH=\"\$HOME/.local/bin:\$PATH\""
     echo ""
 fi
 
