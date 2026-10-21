@@ -1,0 +1,38 @@
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.directory
+
+# Editor / IDE settings
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+*~
+
+# Logs and databases
+*.log
+*.sqlite
+
+# Backup and temp files
+*.bak
+*.tmp
+*.temp
+
+# Just ignore
+*.ignore
+
+# Gemini IDE agent local instructions
+.gemini/
+
+# Temporary agent teamwork artifacts
+.agents/teamwork/

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# advance: Universal System Update Manager
+# ==============================================================================
+
+VERSION="0.9.34"
+BUILD="80"
+
+# Auto-detect source directory (handles symlinks seamlessly)
+detect_source_dir() {
+    local script_path
+    script_path="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+    local script_dir
+    script_dir="$(dirname "$script_path")"
+    if git -C "$script_dir" rev-parse --show-toplevel >/dev/null 2>&1; then
+        SOURCE_DIR="$(git -C "$script_dir" rev-parse --show-toplevel)"
+    else
+        SOURCE_DIR="$script_dir"
+    fi
+}
+detect_source_dir
+
+# Ensure standard user tool directories are in PATH
+for _p in "$HOME/.local/bin" "$HOME/.cargo/bin" "$HOME/.local/share/pnpm"; do
+    [[ -d "$_p" && ":$PATH:" != *":$_p:"* ]] && PATH="$_p:$PATH"
+done
+unset _p
+
+# Resolve library directory (local repo, ~/.local/lib/advance, or /usr/lib/advance)
+if [[ -d "$SOURCE_DIR/lib" ]]; then
+    LIB_DIR="$SOURCE_DIR/lib"
+elif [[ -d "$HOME/.local/lib/advance" ]]; then
+    LIB_DIR="$HOME/.local/lib/advance"
+elif [[ -d "/usr/lib/advance" ]]; then
+    LIB_DIR="/usr/lib/advance"
+else
+    echo "ERROR: Could not locate Advance library directory (lib/)." >&2
+    exit 1
+fi
+
+# Load core modules in dependency order
+source "$LIB_DIR/core.sh"
+source "$LIB_DIR/config.sh"
+source "$LIB_DIR/plugins.sh"
+source "$LIB_DIR/groups.sh"
+source "$LIB_DIR/retry.sh"
+source "$LIB_DIR/update.sh"
+
+# Execute update workflow / CLI dispatcher
+do_update "$@"

@@ -1,0 +1,210 @@
+.TH ADVANCE 1 "September 2026" "Universal Linux" "Update Manager"
+.SH NAME
+advance \- Universal system update manager with modular plugins and snapshot integration
+.SH SYNOPSIS
+.B advance
+[\fIOPTIONS\fR] [\fISUBCOMMAND\fR]
+.SH DESCRIPTION
+.B advance
+is a modular, portable system update utility for Linux. Everything runs through configuration plugins organized into directory-based groups under \fB~/.config/advance/managers.d/\fR.
+.PP
+Advance automatically resolves package managers within each group by priority, runs pre-flight network connectivity checks, coordinates transactional pre-update and post-update system snapshots via \fBcheckpoint\fR, and handles failure recovery through automatic fallback chains.
+.PP
+If an active package manager in a group encounters an error during updates, Advance provides an interactive retry escalation menu featuring an automatic \fBFallback\fR option to switch to the next available manager in that group.
+
+.SH TARGETING & GROUPS
+.B Groups
+are defined by subdirectories inside \fB~/.config/advance/managers.d/\fR:
+.PP
+.RS 4
+.nf
+~/.config/advance/managers.d/
+|-- system/                  (group: system)
+|   |-- pacman.conf          (priority 0)
+|   |-- yay.conf             (priority 10)
+|   \-- paru.conf            (priority 15)
+|-- flatpak/                 (group: flatpak)
+|   \-- flatpak.conf         (priority 0)
+|-- node/                    (group: node)
+|   |-- npm.conf             (priority 0)
+|   \-- pnpm.conf            (priority 10)
+\-- custom.conf              (standalone / ungrouped)
+.fi
+.RE
+.PP
+Within each group, managers must have distinct priority values. Groups execute in order of their group execution priority (default: \fBsystem\fR is 100, other groups are 50, configurable via \fBadvance config\fR or \fBGROUP_PRIORITY_<group>\fR). Only the highest-priority installed and enabled manager runs as the active manager. Lower-priority managers remain on standby for fallback if the active manager fails. Loose \fB.conf\fR files in the root of \fBmanagers.d/\fR are standalone and run whenever enabled.
+
+.SH OPTIONS
+.SS Modes
+.TP
+.BR \-ch ", " \-\-check
+Check for available updates across all active sources without installing them. Displays update counts and package totals. When combined with \fB\-v\fR/\fB\-\-verbose\fR, displays the list of upgradable packages for each source. Does not require sudo privileges.
+
+.SS Target Selection
+Specifying any target flag activates "only-mode", disabling all unselected managers and snapshot phases unless explicitly requested.
+.TP
+.BR \-o ", " \-\-only " \fIMANAGER\fR"
+Only run updates for the specified package manager (e.g. \fBpacman\fR, \fByay\fR, \fBflatpak\fR). Repeatable. When multiple managers in the same group are specified via \fB\-\-only\fR, group competition is bypassed, force-running all of them together.
+.TP
+.BR \-og ", " \-\-only\-group " \fIGROUP\fR"
+Only run managers belonging to the specified group (e.g. \fBsystem\fR, \fBflatpak\fR, \fBnode\fR). Repeatable. Group resolution applies, selecting the highest-priority available manager in the group.
+.TP
+.BR \-n ", " \-\-no " \fIMANAGER\fR"
+Skip updates for the specified package manager. Repeatable. If the skipped manager was the active manager in a group, Advance falls through to the next highest-priority available manager in that group.
+.TP
+.BR \-ng ", " \-\-no\-group " \fIGROUP\fR"
+Skip an entire group of package managers. Repeatable.
+
+.SS Phase Control
+.TP
+.BR \-oprs ", " \-\-only\-pre\-snapshot
+Create a pre-update system snapshot only.
+.TP
+.BR \-ops ", " \-\-only\-post\-snapshot
+Create a post-update system snapshot only.
+.TP
+.BR \-nprs ", " \-\-no\-pre\-snapshot
+Skip creating the pre-update snapshot.
+.TP
+.BR \-ns ", " \-\-no\-snapshot
+Skip creating the post-update snapshot.
+.TP
+.BR \-nc ", " \-\-no\-cleanup
+Skip snapshot auto-cleanup after updates.
+
+.SS Snapshot Modifiers
+.TP
+.BR \-fprs ", " \-\-force\-pre\-snapshot
+Force pre-update snapshot creation, ignoring minimum age threshold and whether updates are found.
+.TP
+.BR \-fs ", " \-\-force\-snapshot
+Force post-update snapshot creation even if no packages were upgraded.
+.TP
+.BR \-kprs ", " \-\-keep\-pre\-snapshot
+Mark pre-update snapshot as protected \fB[KEEP]\fR.
+.TP
+.BR \-ks ", " \-\-keep\-snapshot
+Mark post-update snapshot as protected \fB[KEEP]\fR.
+.TP
+.BR \-fd ", " \-\-force\-delete
+Allow deletion of protected \fB[KEEP]\fR snapshots during auto-cleanup.
+.TP
+.BR \-k ", " \-\-keep " \fIN\fR"
+Override snapshot retention limit (Default: 6).
+
+.SS Update Modifiers
+.TP
+.BR \-ef ", " \-\-extra\-flag " \fIMANAGER:FLAG\fR"
+Append an extra persistent flag to the specified package manager for this run only (e.g. \fBadvance \-ef yay:\-\-devel\fR). Repeatable across different managers or flags.
+.TP
+.BR \-nef ", " \-\-no\-extra\-flags " \fIMANAGER\fR"
+Clear all extra flags for the specified package manager for this run only (e.g. \fBadvance \-nef yay\fR). Repeatable. Can be combined with \fB\-ef\fR to replace extra flags.
+.TP
+.BR \-ex ", " \-\-exclude " \fIPACKAGE\fR"
+Exclude package from system package updates. Repeatable. Excluded packages are automatically mapped to the appropriate package manager flag (e.g. \fB\-\-ignore\fR for pacman/aur helpers, \fB\-\-exclude\fR for dnf, or temporary holds for apt).
+.TP
+.BR \-i ", " \-\-interactive
+Force manual confirmation mode for all managers. Strips auto-confirm flags (\fBFLAGS_AUTO_CONFIRM\fR) and appends \fBFLAGS_INTERACTIVE\fR when configured. Overrides per-manager and global auto-confirm settings.
+
+.SS General Options
+.TP
+.BR \-V ", " \-\-version
+Print version information and exit.
+.TP
+.BR \-v ", " \-\-verbose ", " \-\-debug
+Enable detailed debug logs.
+.TP
+.BR \-h ", " \-\-help
+Display command usage and options.
+
+.SS Subcommands
+.TP
+.B config
+Open the interactive configuration menu (requires \fBfzf\fR), including visual group & manager priority ordering (with \fBAlt+Up\fR/\fBAlt+Down\fR reordering hotkeys and automatic conflict-free renumbering), guided package manager creation, non-destructive flag editing, and general preferences.
+.TP
+.B config export \fR[\fIMANAGER\fR|\fB\-\-all\fR]
+Print configuration for the specified manager to stdout, or bundle all manager configurations into a tarball (\fBadvance-managers.tar.gz\fR).
+.TP
+.B config import \fI<file|url>\fR
+Import manager configuration(s) from a local \fB.conf\fR file, a tarball bundle, or a remote URL.
+.TP
+.B schedule
+Open the interactive systemd auto-update scheduling wizard.
+.TP
+.B catalog \fR[\fBlist\fR|\fBscan\fR|\fBenroll \fIMGR\fR|\fBremove \fIMGR\fR]
+Manage official catalog recipes. \fBlist\fR displays all catalog recipes with installation and enrollment status; \fBscan\fR auto-enrolls all detected tools; \fBenroll\fR symlinks a catalog recipe into active managers; \fBremove\fR disables an active manager.
+.TP
+.B self-update
+Pull latest changes from the git repository and reinstall.
+
+.SH CONFIGURATION FILES
+.TP
+.B ~/.config/advance/config
+Main configuration file in \fBKEY=VALUE\fR format. Managed via \fBadvance config\fR. Key settings include \fBAUTO_CONFIRM\fR (global auto-confirm default), \fBGROUP_PRIORITY_<name>\fR (integer group execution priority; higher value runs first), and \fBSKIP_CHECKPOINT_WARNING\fR (suppress prompt when Checkpoint is not installed).
+.TP
+.B ~/.config/advance/excludes
+List of package names to exclude from system updates (one package name per line, comments starting with \fB#\fR ignored).
+.TP
+.B ~/.local/share/advance/catalog/managers/
+Official upstream catalog recipes organized by category (\fBsystem\fR, \fBflatpak\fR, \fBsnap\fR, \fBbrew\fR, \fBnode\fR, \fBrust\fR, \fBpython\fR, \fBhardware\fR).
+.TP
+.B ~/.config/advance/managers.d/<group>/<manager>.conf
+Active enrolled manager configurations or symlinks pointing to official catalog recipes.
+.TP
+.B ~/.config/advance/overrides.d/<manager>.conf
+Optional user drop-in override files. Values defined here take precedence over catalog files without modifying upstream recipes. Supported fields:
+.RS
+.IP \(bu 2
+\fBNAME\fR: Display name.
+.IP \(bu 2
+\fBEMOJI\fR: Graphical icon for UI display.
+.IP \(bu 2
+\fBREQUIRES_CMD\fR: Required executable binary; manager is silently skipped if not found in PATH.
+.IP \(bu 2
+\fBPRIORITY\fR: Integer priority within the group (higher value = preferred). Must be unique per group.
+.IP \(bu 2
+\fBCHECK_CMD\fR: Command to check for updates (leave empty to always run).
+.IP \(bu 2
+\fBUPDATE_CMD\fR: Command to perform package updates.
+.IP \(bu 2
+\fBFLAGS\fR: Persistent flags always appended to update command (e.g. \fB\-\-needed \-\-devel\fR).
+.IP \(bu 2
+\fBAUTO_CONFIRM\fR: Confirmation mode: \fBtrue\fR (ON unless forced), \fBfalse\fR (OFF unless forced), or empty (follow global setting).
+.IP \(bu 2
+\fBFLAGS_AUTO_CONFIRM\fR: Non-interactive confirmation flag appended by default in auto-confirm mode.
+.IP \(bu 2
+\fBFLAGS_INTERACTIVE\fR: Flag appended when running in \fB\-\-interactive\fR mode.
+.IP \(bu 2
+\fBFLAGS_OVERRIDE\fR: Flag appended during retry escalation to force past file conflicts.
+.IP \(bu 2
+\fBCOLOR_FLAG\fR: Color output flag appended to check and update commands when color is enabled (e.g. \fB\-\-color=always\fR).
+.IP \(bu 2
+\fBEXCLUDE_FLAG\fR: Flag used to exclude packages (e.g. \fB\-\-ignore\fR, \fB\-\-exclude\fR).
+.IP \(bu 2
+\fBEXCLUDE_JOIN\fR: How multiple excluded packages are joined: \fBcomma\fR or \fBrepeat\fR.
+.IP \(bu 2
+\fBEXCLUDE_HOLD_CMD\fR: Command template to hold packages before update (e.g. \fBapt\-mark hold $PKG\fR).
+.IP \(bu 2
+\fBEXCLUDE_UNHOLD_CMD\fR: Command template to unhold packages after update (e.g. \fBapt\-mark unhold $PKG\fR).
+.IP \(bu 2
+\fBCHECK_UPDATES_EXIT_CODE\fR: Exit code indicating updates are available (\fB0\fR or \fB100\fR, default \fB0\fR).
+.IP \(bu 2
+\fBCHECK_FILTER_PATTERN\fR: Optional regex filter pattern applied to check command output.
+.IP \(bu 2
+\fBCHECK_TIMEOUT_FALLBACK\fR: Fallback command executed if check command times out.
+.IP \(bu 2
+\fBCHECK_DEP_BIN\fR: Optional helper executable binary required to survey updates (e.g. \fBcheckupdates\fR).
+.IP \(bu 2
+\fBCHECK_DEP_INSTALL_CMD\fR: Command to automatically install the check helper if missing.
+.IP \(bu 2
+\fBPOST_UPDATE_MSG_ID\fR: Dismissible message identifier for post-update advice.
+.IP \(bu 2
+\fBPOST_UPDATE_MSG\fR: Advice message text shown when this manager successfully updates packages.
+.IP \(bu 2
+\fBENABLED\fR: Set to \fBtrue\fR or \fBfalse\fR.
+.RE
+
+.SH SEE ALSO
+.BR checkpoint (1),
+.BR snapper (8),
+.BR timeshift (1)
