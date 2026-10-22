@@ -181,7 +181,11 @@ do_update() {
     fi
     if [[ "$1" == "self-update" ]]; then ensure_menu_loaded; self_update; return $?; fi
     if [[ "$1" == "schedule" ]]; then ensure_menu_loaded; manage_schedule; return 0; fi
-    set -- $DEFAULTS "$@"
+    if [[ -n "$DEFAULTS" ]]; then
+        local -a _default_args=()
+        read -r -a _default_args <<< "$DEFAULTS"
+        set -- "${_default_args[@]}" "$@"
+    fi
 
     local do_pre=${ALWAYS_PRE_SNAP:-true}; local do_post=${ALWAYS_POST_SNAP:-true}; local do_clean=${ALWAYS_CLEANUP:-true}
     local keep_pre=${ALWAYS_KEEP_PRE:-false}; local keep_post=${ALWAYS_KEEP_POST:-false}
