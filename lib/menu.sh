@@ -2834,6 +2834,11 @@ EOF
 self_update() {
     detect_source_dir
     if [[ ! -d "$SOURCE_DIR" ]]; then ui_error "Source repo not found."; return 1; fi
+    if [[ ! -x "$SOURCE_DIR/install.sh" ]]; then
+        ui_error "No installer found in $SOURCE_DIR."
+        ui_info "This copy of Advance was installed by a package manager; update it with your system package manager instead."
+        return 1
+    fi
     (
         cd "$SOURCE_DIR" || exit 1
         if git remote | grep -qx 'origin'; then
