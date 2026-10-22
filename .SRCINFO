@@ -1,0 +1,29 @@
+pkgbase = advance-git
+	pkgdesc = Universal modular system update manager with priority groups and snapshot support (git)
+	pkgver = 0.9.35
+	pkgrel = 1
+	url = https://github.com/Stiggimy/advance
+	install = advance-git.install
+	arch = any
+	license = unknown
+	makedepends = git
+	depends = bash
+	depends = coreutils
+	depends = findutils
+	depends = gawk
+	depends = grep
+	depends = sed
+	depends = iproute2
+	depends = sudo
+	optdepends = fzf: interactive configuration and scheduling menus
+	optdepends = checkpoint: transactional pre/post update snapshots (https://github.com/Stiggimy/checkpoint)
+	optdepends = libnotify: desktop notifications for failures and background updates
+	optdepends = curl: import manager configurations from a URL
+	optdepends = pacman-contrib: checkupdates support for Pacman/Yay/Paru
+	optdepends = systemd: background auto-update timers
+	provides = advance
+	conflicts = advance
+	source = advance-git::git+https://github.com/Stiggimy/advance.git#branch=master
+	sha256sums = SKIP
+
+pkgname = advance-git

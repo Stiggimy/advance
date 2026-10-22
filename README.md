@@ -21,7 +21,8 @@ Advance is a modern, modular, distro-agnostic update orchestrator for Linux. It 
     - `[I] Interactive` — Strip non-interactive flags for manual confirmation
     - `[F] Fallback` — Switch to next available manager in group
     - `[S] Skip` / `[A] Abort`
-- 🚫 **Unified Package Exclusions:** Exclude problematic packages on the fly (`-ex <pkg>`), via config (`EXCLUDE_PACKAGES`), or via `~/.config/advance/excludes`. Automatically mapped to manager-native exclusion flags.
+- 🚫 **Unified Package Exclusions:** Exclude problematic packages on the fly (`-ex <pkg>`), via config (`EXCLUDE_PACKAGES`), or via `$XDG_CONFIG_HOME/advance/excludes`. Automatically mapped to manager-native exclusion flags.
+- 📁 **XDG-Aware:** Configuration, data, cache, and state follow the XDG Base Directory specification.
 - 🌐 **Pre-flight Connectivity Check:** Verifies network before checking or applying updates to prevent hung scripts.
 - ⚙️ **FZF Menus & Scheduling:** Rich interactive configuration hub (`advance config`) with a guided custom package manager wizard, non-destructive flag tuning, and systemd auto-update scheduler (`advance schedule`).
 
@@ -29,10 +30,10 @@ Advance is a modern, modular, distro-agnostic update orchestrator for Linux. It 
 
 ## Directory & Group Structure
 
-Groups are defined by **subdirectories** inside `~/.config/advance/managers.d/`:
+Groups are defined by **subdirectories** inside `$XDG_CONFIG_HOME/advance/managers.d/` (default: `~/.config/advance/managers.d/`):
 
 ```
-~/.config/advance/managers.d/
+$XDG_CONFIG_HOME/advance/managers.d/
 ├── system/                  ← GROUP: system (highest priority available wins)
 │   ├── pacman.conf          (priority: 0)
 │   ├── yay.conf             (priority: 10)
@@ -47,7 +48,7 @@ Groups are defined by **subdirectories** inside `~/.config/advance/managers.d/`:
 └── my-custom-tool.conf      ← STANDALONE (always runs if enabled)
 ```
 
-Groups execute in order of their group priority (configured in `~/.config/advance/config` via `GROUP_PRIORITY_<group>=<number>`, or interactively in `advance config`). By default, `system` runs first (priority 100), followed by other groups (priority 50).
+Groups execute in order of their group priority (configured in `$XDG_CONFIG_HOME/advance/config` via `GROUP_PRIORITY_<group>=<number>`, or interactively in `advance config`). By default, `system` runs first (priority 100), followed by other groups (priority 50).
 
 ### Plugin Format
 
@@ -88,6 +89,31 @@ cd advance
 The installer automatically creates symlinks, deploys the man page, and enrolls detected package managers from the official catalog.
 
 > **Tip:** Install [`checkpoint`](https://github.com/Stiggimy/checkpoint) alongside Advance for automated snapshot support.
+
+### Arch Linux (PKGBUILD)
+
+A VCS `PKGBUILD` is included for a system-wide install. It builds `advance-git` from the latest commit on `master`, so rebuilding the package picks up new changes:
+
+```bash
+git clone https://github.com/Stiggimy/advance.git
+cd advance
+makepkg -si
+```
+
+The package installs the binary to `/usr/bin/advance`, libraries to `/usr/lib/advance`, the catalog to `/usr/share/advance/catalog`, and the manual to `/usr/share/man/man1`. It provides `advance` and conflicts with a non-VCS `advance` package. The catalog is enrolled into each user's config directory on first run (or via `advance catalog scan`).
+
+### XDG directories
+
+Advance follows the [XDG Base Directory specification](https://specifications.freedesktop.org/basedir-spec/):
+
+| Purpose | Default location | Override |
+|---|---|---|
+| Configuration | `~/.config/advance/` | `XDG_CONFIG_HOME` / `ADVANCE_CONFIG_DIR` |
+| Catalog & per-user libraries | `~/.local/share/advance/` | `XDG_DATA_HOME` / `ADVANCE_DATA_DIR` |
+| Persistent state (dismissed tips) | `~/.local/state/advance/` | `XDG_STATE_HOME` / `ADVANCE_STATE_DIR` |
+| Cache (catalog probes) | `~/.cache/advance/` | `XDG_CACHE_HOME` / `ADVANCE_CACHE_DIR` |
+
+Legacy files in the old hardcoded locations are migrated automatically when a non-default XDG directory is set. Set `NO_COLOR=1` to disable colored output.
 
 ---
 

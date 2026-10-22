@@ -3,8 +3,8 @@
 # advance: Universal System Update Manager
 # ==============================================================================
 
-VERSION="0.9.34"
-BUILD="81"
+VERSION="0.9.35"
+BUILD="82"
 
 # Auto-detect source directory (handles symlinks seamlessly)
 detect_source_dir() {
@@ -21,25 +21,39 @@ detect_source_dir() {
 detect_source_dir
 
 # Ensure standard user tool directories are in PATH
-for _p in "$HOME/.local/bin" "$HOME/.cargo/bin" "$HOME/.local/share/pnpm"; do
+for _p in "$HOME/.local/bin" "${CARGO_HOME:-$HOME/.cargo}/bin" "${PNPM_HOME:-$HOME/.local/share/pnpm}"; do
     [[ -d "$_p" && ":$PATH:" != *":$_p:"* ]] && PATH="$_p:$PATH"
 done
 unset _p
 
-# Resolve library directory (local repo, ~/.local/lib/advance, or /usr/lib/advance)
+# Resolve XDG base directories (honours the user's environment)
+: "${XDG_CONFIG_HOME:=$HOME/.config}"
+: "${XDG_DATA_HOME:=$HOME/.local/share}"
+: "${XDG_STATE_HOME:=$HOME/.local/state}"
+: "${XDG_CACHE_HOME:=$HOME/.cache}"
+_adv_data_dir="${ADVANCE_DATA_DIR:-$XDG_DATA_HOME/advance}"
+
+# Resolve library directory (source checkout, XDG data dir, legacy per-user
+# install, or a system-wide package install)
 if [[ -d "$SOURCE_DIR/lib" ]]; then
     LIB_DIR="$SOURCE_DIR/lib"
+elif [[ -d "$_adv_data_dir/lib" ]]; then
+    LIB_DIR="$_adv_data_dir/lib"
 elif [[ -d "$HOME/.local/lib/advance" ]]; then
     LIB_DIR="$HOME/.local/lib/advance"
 elif [[ -d "/usr/lib/advance" ]]; then
     LIB_DIR="/usr/lib/advance"
+elif [[ -d "/usr/share/advance/lib" ]]; then
+    LIB_DIR="/usr/share/advance/lib"
 else
     echo "ERROR: Could not locate Advance library directory (lib/)." >&2
     exit 1
 fi
+unset _adv_data_dir
 
 # Load core modules in dependency order
 source "$LIB_DIR/core.sh"
+source "$LIB_DIR/xdg.sh"
 source "$LIB_DIR/config.sh"
 source "$LIB_DIR/plugins.sh"
 source "$LIB_DIR/groups.sh"

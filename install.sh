@@ -1,14 +1,30 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
-# --- advance Installer ---
+# --- advance Installer (per-user, XDG-aware) ---
+#
+# Installs into the XDG base directories when they are set:
+#   binaries   -> ~/.local/bin (no XDG equivalent)
+#   libraries  -> $XDG_DATA_HOME/advance/lib
+#   catalog    -> $XDG_DATA_HOME/advance/catalog
+#   man page   -> $XDG_DATA_HOME/man/man1
+#   config     -> $XDG_CONFIG_HOME/advance
+#
+# For a system-wide install use the PKGBUILD (makepkg -si) instead.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+: "${XDG_CONFIG_HOME:=$HOME/.config}"
+: "${XDG_DATA_HOME:=$HOME/.local/share}"
+
 BIN_DIR="$HOME/.local/bin"
-MAN_DIR="$HOME/.local/share/man/man1"
-MANAGERS_DIR="$HOME/.config/advance/managers.d"
+MAN_DIR="$XDG_DATA_HOME/man/man1"
+DATA_DIR="${ADVANCE_DATA_DIR:-$XDG_DATA_HOME/advance}"
+LIB_DIR="$DATA_DIR/lib"
+CATALOG_DIR="$DATA_DIR/catalog"
+CONFIG_DIR="${ADVANCE_CONFIG_DIR:-$XDG_CONFIG_HOME/advance}"
+MANAGERS_DIR="$CONFIG_DIR/managers.d"
 
 # Color Setup (with compatibility check)
 RED=""; GREEN=""; YELLOW=""; BLUE=""; BOLD=""; RESET=""
@@ -22,19 +38,28 @@ fi
 
 echo "${BLUE}>>> [Phase: Installation] Setting up Advance...${RESET}"
 
+# Replace a real file/directory with a symlink, keeping a backup of user data.
+link_path() {
+    local src="$1" dest="$2"
+    if [[ -e "$dest" && ! -L "$dest" ]]; then
+        local backup="${dest}.bak.$(date +%Y%m%d%H%M%S)"
+        mv "$dest" "$backup"
+        echo "  ${YELLOW}[BACKUP]${RESET} $dest -> $backup"
+    fi
+    mkdir -p "$(dirname "$dest")"
+    ln -sfn "$src" "$dest"
+}
+
 # Ensure directories exist
-mkdir -p "$BIN_DIR"
-mkdir -p "$MAN_DIR"
-mkdir -p "$HOME/.local/lib"
-mkdir -p "$HOME/.local/share/advance"
+mkdir -p "$BIN_DIR" "$MAN_DIR" "$DATA_DIR" "$CONFIG_DIR"
 
 # Copy / link files
-ln -sf "$(pwd)/advance" "$BIN_DIR/advance"
-ln -sfn "$(pwd)/lib" "$HOME/.local/lib/advance"
-ln -sfn "$(pwd)/catalog" "$HOME/.local/share/advance/catalog"
+link_path "$(pwd)/advance" "$BIN_DIR/advance"
+link_path "$(pwd)/lib" "$LIB_DIR"
+link_path "$(pwd)/catalog" "$CATALOG_DIR"
 cp ./advance.1 "$MAN_DIR/advance.1"
 if [ -f "./ship.sh" ]; then
-    ln -sf "$(pwd)/ship.sh" "$BIN_DIR/ship"
+    link_path "$(pwd)/ship.sh" "$BIN_DIR/ship"
     chmod +x "./ship.sh"
 fi
 
@@ -42,7 +67,7 @@ fi
 echo "${BLUE}>>> [Phase: Auto-Discovery] Enrolling installed package managers from catalog...${RESET}"
 
 # Ensure standard user tool directories are in PATH during installation
-for _p in "$HOME/.local/bin" "$HOME/.cargo/bin" "$HOME/.local/share/pnpm"; do
+for _p in "$HOME/.local/bin" "${CARGO_HOME:-$HOME/.cargo}/bin" "${PNPM_HOME:-$HOME/.local/share/pnpm}"; do
     [[ -d "$_p" && ":$PATH:" != *":$_p:"* ]] && PATH="$_p:$PATH"
 done
 unset _p
@@ -75,9 +100,10 @@ chmod +x "$BIN_DIR/advance"
 echo "${GREEN}[OK] Advance installed successfully!${RESET}"
 echo "   - Binary: $BIN_DIR/advance"
 [ -f "./ship.sh" ] && echo "   - Ship Tool: $BIN_DIR/ship"
-echo "   - Libraries: $HOME/.local/lib/advance"
-echo "   - Catalog: $HOME/.local/share/advance/catalog"
+echo "   - Libraries: $LIB_DIR"
+echo "   - Catalog: $CATALOG_DIR"
 echo "   - Manual: $MAN_DIR/advance.1"
+echo "   - Configuration: $CONFIG_DIR"
 echo "   - Managers: $MANAGERS_DIR/"
 echo ""
 
@@ -88,6 +114,11 @@ if ! command -v checkpoint >/dev/null 2>&1; then
     echo ""
     echo "${BLUE}Quick Tip:${RESET} To install it easily, go to your checkpoint repository and run:"
     echo "           ${BOLD}./install.sh${RESET}"
+    echo ""
+fi
+
+if ! command -v fzf >/dev/null 2>&1; then
+    echo "${YELLOW}[WARN] 'fzf' is not installed. 'advance config' and 'advance schedule' need it.${RESET}"
     echo ""
 fi
 

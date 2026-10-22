@@ -4,7 +4,7 @@
 # Part of Advance Universal System Update Manager
 # ==============================================================================
 
-CONFIG_FILE="$HOME/.config/advance/config"
+# CONFIG_FILE is resolved by lib/xdg.sh
 
 # --- Internal Defaults ---
 USE_COLOR=true; USE_EMOJI=true
@@ -22,6 +22,7 @@ load_config() {
         [[ -z "$key" || "$key" == \#* ]] && continue
         key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
         value="${value#"${value%%[![:space:]]*}"}"; value="${value%"${value##*[![:space:]]}"}"
+        key="${key%$'\r'}"; value="${value%$'\r'}"
         case "$key" in
             USE_COLOR) USE_COLOR="$value" ;;
             USE_EMOJI) USE_EMOJI="$value" ;;
@@ -45,6 +46,7 @@ load_config() {
 
 save_config() {
     mkdir -p "$(dirname "$CONFIG_FILE")"
+    local tmp_file="${CONFIG_FILE}.tmp.$$"
     {
         echo "USE_COLOR=$USE_COLOR"
         echo "USE_EMOJI=$USE_EMOJI"
@@ -60,16 +62,16 @@ save_config() {
         echo "EXCLUDE_PACKAGES=$EXCLUDE_PACKAGES"
         echo "AUTO_CONFIRM=$AUTO_CONFIRM"
         echo "SKIP_CHECKPOINT_WARNING=$SKIP_CHECKPOINT_WARNING"
-        # Write group toggles
+        # Write group toggles (sorted so the file stays stable between saves)
         local grp
-        for grp in "${!GROUP_ENABLED[@]}"; do
-            echo "GROUP_${grp}=${GROUP_ENABLED[$grp]}"
-        done
+        while IFS= read -r grp; do
+            if [[ -n "$grp" ]]; then echo "GROUP_${grp}=${GROUP_ENABLED[$grp]}"; fi
+        done < <(printf '%s\n' "${!GROUP_ENABLED[@]}" | sort)
         # Write group execution priorities
-        for grp in "${!GROUP_PRIORITY[@]}"; do
-            echo "GROUP_PRIORITY_${grp}=${GROUP_PRIORITY[$grp]}"
-        done
-    } > "$CONFIG_FILE"
+        while IFS= read -r grp; do
+            if [[ -n "$grp" ]]; then echo "GROUP_PRIORITY_${grp}=${GROUP_PRIORITY[$grp]}"; fi
+        done < <(printf '%s\n' "${!GROUP_PRIORITY[@]}" | sort)
+    } > "$tmp_file" && mv -f "$tmp_file" "$CONFIG_FILE"
 }
 
 get_group_priority() {
@@ -93,7 +95,7 @@ set_group_priority() {
 # --- Dismissable Tips / Notification System ---
 show_message() {
     local id="$1" text="$2"
-    local dismissed_file="$HOME/.config/advance/.dismissed_messages"
+    local dismissed_file="$DISMISSED_FILE"
     [[ -f "$dismissed_file" ]] && grep -qxF "$id" "$dismissed_file" && return
     echo -e "\n${C_BLUE}${C_BOLD}💡 $text${C_RESET}"
     if [[ -t 0 ]]; then

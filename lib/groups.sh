@@ -52,7 +52,7 @@ resolve_groups() {
         local key="${group}:${priority}"
         if [[ -n "${_seen_priorities[$key]}" ]]; then
             ui_error "Priority conflict in group '$group': '${CUSTOM_NAMES[$i]}' and '${_seen_priorities[$key]}' both have priority $priority."
-            ui_error "Fix this in ~/.config/advance/managers.d/$group/ before running."
+            ui_error "Fix this in $(tilde_path "$CUSTOM_DIR")/$group/ before running."
             exit 1
         fi
         _seen_priorities[$key]="${CUSTOM_NAMES[$i]}"
