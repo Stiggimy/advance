@@ -180,8 +180,23 @@ do_update() {
         elif [[ "$2" == "import" ]]; then config_import "$3"; return 0;
         else manage_config; return 0; fi
     fi
-    if [[ "$1" == "self-update" || "$1" == "selfupdate" ]]; then ensure_menu_loaded; self_update; return $?; fi
+    if [[ "$1" == "self-update" || "$1" == "selfupdate" || "$1" == "-U" || "$1" == "--self-update" || "$1" == "--selfupdate" ]]; then
+        ensure_menu_loaded; self_update; return $?;
+    fi
     if [[ "$1" == "schedule" ]]; then ensure_menu_loaded; manage_schedule; return 0; fi
+
+    local _skip_update_check=false
+    for _arg in "$@"; do
+        case "$_arg" in
+            self-update|selfupdate|-U|--self-update|--selfupdate|-V|--version|-h|--help|changelog|-c|--changelog|-c=*|--changelog=*)
+                _skip_update_check=true
+                break
+                ;;
+        esac
+    done
+    if [[ "$_skip_update_check" == false ]]; then
+        check_for_tool_updates "$@"
+    fi
     if [[ -n "$DEFAULTS" ]]; then
         local -a _default_args=()
         read -r -a _default_args <<< "$DEFAULTS"

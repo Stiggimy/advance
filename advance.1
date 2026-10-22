@@ -170,7 +170,7 @@ When set to a non-empty value, disables ANSI colors.
 .SH CONFIGURATION FILES
 .TP
 .B $XDG_CONFIG_HOME/advance/config
-Main configuration file in \fBKEY=VALUE\fR format (default \fB~/.config/advance/config\fR). Managed via \fBadvance config\fR. Key settings include \fBAUTO_CONFIRM\fR (global auto-confirm default), \fBGROUP_PRIORITY_<name>\fR (integer group execution priority; higher value runs first), and \fBSKIP_CHECKPOINT_WARNING\fR (suppress prompt when Checkpoint is not installed).
+Main configuration file in \fBKEY=VALUE\fR format (default \fB~/.config/advance/config\fR). Managed via \fBadvance config\fR. Key settings include \fBAUTO_CONFIRM\fR (global auto-confirm default), \fBSELF_UPDATE_CHECK\fR (automatic self-update detector mode: \fBprompt\fR, \fBnotify\fR, \fBauto\fR, or \fBoff\fR; default \fBprompt\fR), \fBGROUP_PRIORITY_<name>\fR (integer group execution priority; higher value runs first), and \fBSKIP_CHECKPOINT_WARNING\fR (suppress prompt when Checkpoint is not installed).
 .TP
 .B $XDG_CONFIG_HOME/advance/excludes
 List of package names to exclude from system updates (one package name per line, comments starting with \fB#\fR ignored).

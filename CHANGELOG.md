@@ -5,10 +5,17 @@ All notable changes to Advance will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.35] — 2026-10-22
+## [0.10.0] — 2026-10-23
 
 ### Added
+- **Smart Self-Update Detector**: Added an asynchronous, non-blocking background update detector that queries upstream git tracking branches with a 6-hour cache, atomic cache storage, and customizable response behavior via `SELF_UPDATE_CHECK` (`prompt`, `notify`, `auto`, `off`).
+- **Interactive Self-Update Prompt**: Added interactive prompt (`[Y/n/a/d]`) when new updates are detected, with one-touch immediate update and transparent re-execution of the original command, version skipping, and automatic mode switching.
+- **Self-Update Preferences Hub**: Added dedicated `Self-Update Check` selector in `advance config` (under *Execution & Error Handling*) with live mode previews and real-time FZF selector.
 - **Self-Update Command Expansion (`selfupdate`, `-U`)**: Added `selfupdate` alongside `self-update`, along with `-U`, `--self-update`, and `--selfupdate` CLI flags for fast tool suite updates across option parsing, help text, man pages, and documentation.
+
+## [0.9.35] — 2026-10-23
+
+### Added
 - **Changelog Short Flag (`-c`)**: Added `-c` short flag for `--changelog` across CLI option parsing, help text, and documentation for quick access to formatted release notes and the interactive FZF browser.
 - **Automatic `fzf` Dependency Installation**: Automatically installs `fzf` via active catalog package manager or official git release fallback during `install.sh` and upon launching interactive configuration or scheduling menus.
 - **XDG Base Directory Support**: Configuration, data, state, and cache paths now honor `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME` (as well as `ADVANCE_*_DIR` overrides) with automatic one-time migration from legacy paths (`lib/xdg.sh`).

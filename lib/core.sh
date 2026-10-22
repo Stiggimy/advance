@@ -449,3 +449,168 @@ ensure_fzf() {
         return 1
     fi
 }
+
+# ==============================================================================
+# --- Smart Self-Update Detector ---
+# ==============================================================================
+
+_refresh_self_update_cache() {
+    (
+        local s_dir="${SOURCE_DIR:-}"
+        [[ -z "$s_dir" || ! -d "$s_dir/.git" ]] && exit 0
+        git -C "$s_dir" remote 2>/dev/null | grep -qx 'origin' || exit 0
+
+        local branch
+        branch=$(git -C "$s_dir" branch --show-current 2>/dev/null)
+        branch=${branch:-master}
+
+        if command -v timeout >/dev/null 2>&1; then
+            timeout 3s git -C "$s_dir" fetch -q origin "$branch" 2>/dev/null || exit 0
+        else
+            git -C "$s_dir" fetch -q origin "$branch" 2>/dev/null || exit 0
+        fi
+
+        local local_head remote_head behind
+        local_head=$(git -C "$s_dir" rev-parse HEAD 2>/dev/null)
+        remote_head=$(git -C "$s_dir" rev-parse "origin/$branch" 2>/dev/null)
+        behind=$(git -C "$s_dir" rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)
+
+        local remote_content remote_ver remote_build
+        remote_content=$(git -C "$s_dir" show "origin/$branch:advance" 2>/dev/null || true)
+        remote_ver=$(echo "$remote_content" | grep '^VERSION=' 2>/dev/null | head -n 1 | cut -d'"' -f2)
+        remote_build=$(echo "$remote_content" | grep '^BUILD=' 2>/dev/null | head -n 1 | cut -d'"' -f2)
+
+        local c_file="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
+        local cur_skipped=""
+        if [[ -f "$c_file" ]]; then
+            cur_skipped=$(grep '^SKIPPED_HEAD=' "$c_file" 2>/dev/null | head -n 1 | cut -d'=' -f2-)
+        fi
+
+        local now
+        now=$(date +%s)
+        mkdir -p "$(dirname "$c_file")" 2>/dev/null
+        local tmp_file="${c_file}.tmp.$$"
+        {
+            echo "LAST_CHECK=$now"
+            echo "LOCAL_HEAD=$local_head"
+            echo "REMOTE_HEAD=$remote_head"
+            echo "COMMITS_BEHIND=$behind"
+            echo "REMOTE_VER=$remote_ver"
+            echo "REMOTE_BUILD=$remote_build"
+            echo "SKIPPED_HEAD=$cur_skipped"
+        } > "$tmp_file" && mv -f "$tmp_file" "$c_file" 2>/dev/null
+    ) >/dev/null 2>&1 &
+}
+
+check_for_tool_updates() {
+    [[ "${SELF_UPDATE_CHECK:-prompt}" == "off" || "${SELF_UPDATE_CHECK:-prompt}" == "false" ]] && return 0
+    [[ "${PORCELAIN:-false}" == true ]] && return 0
+    [[ -n "${ADVANCE_SELF_UPDATED:-}" || -n "${CHECKPOINT_SELF_UPDATED:-}" ]] && return 0
+
+    if declare -f detect_source_dir >/dev/null 2>&1; then
+        detect_source_dir
+    fi
+    [[ -z "${SOURCE_DIR:-}" || ! -d "$SOURCE_DIR/.git" || ! -x "$SOURCE_DIR/install.sh" ]] && return 0
+
+    local cache_file="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
+    local LAST_CHECK=0
+    local LOCAL_HEAD=""
+    local REMOTE_HEAD=""
+    local COMMITS_BEHIND=0
+    local REMOTE_VER=""
+    local REMOTE_BUILD=""
+    local SKIPPED_HEAD=""
+
+    if [[ -f "$cache_file" ]]; then
+        while IFS='=' read -r key val || [[ -n "$key" ]]; do
+            key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
+            val="${val#"${val%%[![:space:]]*}"}"; val="${val%"${val##*[![:space:]]}"}"
+            key="${key%$'\r'}"; val="${val%$'\r'}"
+            case "$key" in
+                LAST_CHECK) LAST_CHECK="$val" ;;
+                LOCAL_HEAD) LOCAL_HEAD="$val" ;;
+                REMOTE_HEAD) REMOTE_HEAD="$val" ;;
+                COMMITS_BEHIND) COMMITS_BEHIND="$val" ;;
+                REMOTE_VER) REMOTE_VER="$val" ;;
+                REMOTE_BUILD) REMOTE_BUILD="$val" ;;
+                SKIPPED_HEAD) SKIPPED_HEAD="$val" ;;
+            esac
+        done < "$cache_file"
+    fi
+
+    local cur_head now
+    cur_head=$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null)
+    now=$(date +%s)
+
+    if [[ -n "$LOCAL_HEAD" && "$LOCAL_HEAD" != "$cur_head" ]]; then
+        COMMITS_BEHIND=0
+    fi
+
+    if [[ ! -f "$cache_file" || $((now - ${LAST_CHECK:-0})) -ge 21600 ]]; then
+        (_refresh_self_update_cache &)
+    fi
+
+    if [[ ${COMMITS_BEHIND:-0} -gt 0 && -n "$REMOTE_HEAD" && "${SKIPPED_HEAD:-}" != "$REMOTE_HEAD" ]]; then
+        local ver_info="v${REMOTE_VER:-$VERSION}${REMOTE_BUILD:+ (build $REMOTE_BUILD)}, ${COMMITS_BEHIND} commit(s) ahead"
+        if [[ "${SELF_UPDATE_CHECK:-prompt}" == "notify" || ! -t 0 || ! -t 1 ]]; then
+            ui_info "${C_BOLD}${C_YELLOW}New version of Advance available ($ver_info)!${C_RESET} Run '${C_GREEN}advance -U${C_RESET}' to update."
+        elif [[ "${SELF_UPDATE_CHECK:-prompt}" == "auto" ]]; then
+            ui_info "New version of Advance available ($ver_info). Auto-updating..."
+            if declare -f ensure_menu_loaded >/dev/null 2>&1; then ensure_menu_loaded; fi
+            if self_update; then
+                rm -f "$cache_file"
+                export ADVANCE_SELF_UPDATED=1
+                exec "$0" "$@"
+            fi
+        else
+            echo ""
+            ui_info "${C_BOLD}${C_YELLOW}A new version of Advance is available!${C_RESET} ${C_CYAN}($ver_info)${C_RESET}"
+            echo -e "  [${C_GREEN}Y${C_RESET}] Update now   [${C_CYAN}N${C_RESET}] Skip this version   [${C_PURP}A${C_RESET}] Always auto-update   [${C_RED}D${C_RESET}] Disable checks"
+            echo -n -e "${C_BOLD}Choice [Y/n/a/d]: ${C_RESET}"
+            local u_choice=""
+            read -r -n 1 u_choice
+            echo ""
+            case "$u_choice" in
+                ""|[Yy])
+                    if declare -f ensure_menu_loaded >/dev/null 2>&1; then ensure_menu_loaded; fi
+                    if self_update; then
+                        rm -f "$cache_file"
+                        export ADVANCE_SELF_UPDATED=1
+                        exec "$0" "$@"
+                    fi
+                    ;;
+                [Aa])
+                    SELF_UPDATE_CHECK="auto"
+                    save_config
+                    ui_ok "Self-update mode set to: Auto-Update."
+                    if declare -f ensure_menu_loaded >/dev/null 2>&1; then ensure_menu_loaded; fi
+                    if self_update; then
+                        rm -f "$cache_file"
+                        export ADVANCE_SELF_UPDATED=1
+                        exec "$0" "$@"
+                    fi
+                    ;;
+                [Dd])
+                    SELF_UPDATE_CHECK="off"
+                    save_config
+                    ui_info "Automatic update checks disabled. Re-enable anytime in 'advance config'."
+                    ;;
+                [Nn]|*)
+                    mkdir -p "$(dirname "$cache_file")" 2>/dev/null
+                    local tmp_f="${cache_file}.tmp.$$"
+                    {
+                        echo "LAST_CHECK=$now"
+                        echo "LOCAL_HEAD=${LOCAL_HEAD:-$cur_head}"
+                        echo "REMOTE_HEAD=$REMOTE_HEAD"
+                        echo "COMMITS_BEHIND=$COMMITS_BEHIND"
+                        echo "REMOTE_VER=$REMOTE_VER"
+                        echo "REMOTE_BUILD=$REMOTE_BUILD"
+                        echo "SKIPPED_HEAD=$REMOTE_HEAD"
+                    } > "$tmp_f" && mv -f "$tmp_f" "$cache_file" 2>/dev/null
+                    ui_info "Skipping update for now."
+                    ;;
+            esac
+        fi
+    fi
+    return 0
+}

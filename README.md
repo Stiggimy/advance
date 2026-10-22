@@ -23,6 +23,7 @@ Advance is a modern, modular, distro-agnostic update orchestrator for Linux. It 
     - `[S] Skip` / `[A] Abort`
 - 🚫 **Unified Package Exclusions:** Exclude problematic packages on the fly (`-ex <pkg>`), via config (`EXCLUDE_PACKAGES`), or via `$XDG_CONFIG_HOME/advance/excludes`. Automatically mapped to manager-native exclusion flags.
 - 📁 **XDG-Aware:** Configuration, data, cache, and state follow the XDG Base Directory specification.
+- 🔄 **Smart Self-Update Detector:** Asynchronous background check against upstream tracking branch with 6-hour caching, interactive `[Y/n/a/d]` prompt, notification banner, or auto-update mode (`advance config`).
 - 🌐 **Pre-flight Connectivity Check:** Verifies network before checking or applying updates to prevent hung scripts.
 - ⚙️ **FZF Menus & Scheduling:** Rich interactive configuration hub (`advance config`) with a guided custom package manager wizard, non-destructive flag tuning, and systemd auto-update scheduler (`advance schedule`).
 

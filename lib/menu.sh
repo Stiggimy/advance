@@ -2586,11 +2586,13 @@ _menu_execution() {
         local s_ac="[OFF]"; [[ "$AUTO_CONFIRM" != false ]] && s_ac="[ON ]"
         local s_inf="[OFF]"; [[ "$INFINITE_RETRIES" == true ]] && s_inf="[ON ]"
         local s_ret="[$AUTO_RETRIES]"
+        local s_upd="[${SELF_UPDATE_CHECK^^}]"
 
         local opt=(
             "$(e 🤖)Global Auto-Confirm        $s_ac"
             "$(e 🔟)Auto-Retries Limit         $s_ret"
             "$(e ♾️)Infinite Retries Mode      $s_inf"
+            "$(e 🔄)Self-Update Check          $s_upd"
             "---"
             "$(e 🔙)Back to Main Menu"
         )
@@ -2608,6 +2610,8 @@ _menu_execution() {
                     echo -e "🔟 Auto-Retries Limit\n─────────────────────\nHow many times Advance silently retries a failed command before stopping to ask you what to do.\n\nWhy use this?\nGreat for handling brief network glitches or mirror timeouts during package downloads without stopping.\n\nValues:\n• 0: Stop and ask immediately on error\n• 1, 2, 3...: Retry up to N times before asking\n\nDefault: 1" ;;
                 *Infinite*)
                     echo -e "♾️ Infinite Retries Mode\n────────────────────────\nContinuously retries failed commands until they succeed.\n\nWhy use this?\nIdeal for unattended background updates or very flaky, slow, or rural internet connections.\n\nCaution:\nIf a package has a broken dependency or conflict, this will loop until manually cancelled with Ctrl+C.\n\nDefault: false" ;;
+                *Self-Update*)
+                    echo -e "🔄 Self-Update Check\n────────────────────\nControls how Advance checks for new versions and commits from GitHub.\n\nModes:\n• prompt: Interactive banner asking [Y/n/a/d] when updates are found (Default)\n• notify: Non-intrusive notification banner only (never pauses CLI)\n• auto: Silently and automatically update Advance before running tasks\n• off: Disable automatic update checks entirely\n\nDefault: prompt" ;;
                 *) echo -e "Select an option to view details and examples." ;;
             esac' --preview-window=right:55%:wrap)
 
@@ -2629,6 +2633,23 @@ _menu_execution() {
                 [[ "$input_retries" =~ ^[0-9]+$ ]] && AUTO_RETRIES="$input_retries" ;;
             *"Infinite Retries Mode"*)
                 [[ "$INFINITE_RETRIES" == true ]] && INFINITE_RETRIES=false || INFINITE_RETRIES=true ;;
+            *"Self-Update Check"*)
+                local modes=(
+                    "$(e 💬)prompt  — Interactive banner: ask [Y/n/a/d] when update is available (Default)"
+                    "$(e 🔔)notify  — Notification banner only (never pauses execution)"
+                    "$(e ⚡)auto    — Automatically update before running tasks"
+                    "$(e 🚫)off     — Disable automatic self-update checks"
+                )
+                local m_choice
+                m_choice=$(printf "%s\n" "${modes[@]}" | fzf --height 10 --reverse \
+                    --header "Select Self-Update Check Mode (Current: $SELF_UPDATE_CHECK)")
+                case "$m_choice" in
+                    *prompt*) SELF_UPDATE_CHECK="prompt" ;;
+                    *notify*) SELF_UPDATE_CHECK="notify" ;;
+                    *auto*)   SELF_UPDATE_CHECK="auto" ;;
+                    *off*)    SELF_UPDATE_CHECK="off" ;;
+                esac
+                ;;
         esac
     done
 }
@@ -2697,6 +2718,7 @@ manage_config() {
     local init_snap_age=$SNAP_MIN_AGE
     local init_auto_confirm=$AUTO_CONFIRM
     local init_skip_checkpoint_warning=$SKIP_CHECKPOINT_WARNING
+    local init_self_update_check=$SELF_UPDATE_CHECK
     local last_idx=0
     local mgr_summary
     mgr_summary=$(get_active_managers_summary)
@@ -2777,6 +2799,7 @@ Current Settings:
 • Global Auto-Confirm: $AUTO_CONFIRM
 • Auto-Retries Limit:  $AUTO_RETRIES
 • Infinite Retries:    $INFINITE_RETRIES
+• Self-Update Check:   $SELF_UPDATE_CHECK
 EOF
 )
         prev_ui=$(cat <<EOF
@@ -2885,6 +2908,7 @@ EOF
                 ALWAYS_PRE_SNAP=$init_pre; ALWAYS_POST_SNAP=$init_post; ALWAYS_CLEANUP=$init_cleanup
                 ALWAYS_KEEP_PRE=$init_kpre; ALWAYS_KEEP_POST=$init_kpost; AUTO_RETRIES=$init_retries; INFINITE_RETRIES=$init_inf
                 SNAP_MIN_AGE=$init_snap_age; AUTO_CONFIRM=$init_auto_confirm; SKIP_CHECKPOINT_WARNING=$init_skip_checkpoint_warning
+                SELF_UPDATE_CHECK=$init_self_update_check
                 ui_info "Changes discarded."; break ;;
             *) continue ;;
         esac
@@ -2948,6 +2972,7 @@ self_update() {
     local sub_code=$?
     if [[ $sub_code -eq 10 ]]; then
         ui_ok "Advance is already up to date (v$VERSION)."
+        rm -f "${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
         if command -v checkpoint >/dev/null 2>&1; then
             echo ""
             checkpoint self-update || true
@@ -2971,6 +2996,7 @@ self_update() {
         display_changelog "$new_ver" || display_changelog "latest"
         echo ""
     fi
+    rm -f "${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
 
     if command -v checkpoint >/dev/null 2>&1; then
         echo ""
