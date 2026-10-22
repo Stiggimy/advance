@@ -1,0 +1,21 @@
+post_install() {
+    cat <<'EOF'
+Advance has been installed system-wide.
+
+  Binary:  /usr/bin/advance
+  Catalog: /usr/share/advance/catalog/managers
+  Manual:  man advance
+
+On first run, Advance enrolls detected package managers into
+$XDG_CONFIG_HOME/advance/managers.d (default: ~/.config/advance/managers.d).
+You can also run "advance catalog scan" at any time.
+
+Optional extras:
+  - fzf       for "advance config" and "advance schedule"
+  - checkpoint for automatic pre/post-update snapshots
+EOF
+}
+
+post_upgrade() {
+    post_install
+}
