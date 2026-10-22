@@ -1,15 +1,12 @@
 # Maintainer: Magrid0 <Magrid0@proton.me>
 #
-# Advance currently ships without release tags, so this PKGBUILD builds from
-# the master branch and derives a precise version from the checked-out commit.
-# Once tagged releases exist, you can switch `source` to:
-#   source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-# and drop pkgver().
+# VCS package: builds the latest commit from the master branch. Rebuild the
+# package to pick up new commits.
 
-pkgname=advance
+pkgname=advance-git
 pkgver=0.9.35
 pkgrel=1
-pkgdesc="Universal modular system update manager with priority groups and snapshot support"
+pkgdesc="Universal modular system update manager with priority groups and snapshot support (git)"
 arch=('any')
 url="https://github.com/Stiggimy/advance"
 license=('unknown')
@@ -23,6 +20,8 @@ optdepends=(
     'pacman-contrib: checkupdates support for Pacman/Yay/Paru'
     'systemd: background auto-update timers'
 )
+provides=('advance')
+conflicts=('advance')
 install="$pkgname.install"
 source=("$pkgname::git+$url.git#branch=master")
 sha256sums=('SKIP')
@@ -45,5 +44,5 @@ package() {
     install -d "$pkgdir/usr/share/advance"
     cp -a "$pkgname/catalog" "$pkgdir/usr/share/advance/"
 
-    install -Dm644 "$pkgname/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$pkgname/README.md" "$pkgdir/usr/share/doc/advance/README.md"
 }

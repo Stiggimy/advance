@@ -1,10 +1,12 @@
 post_install() {
     cat <<'EOF'
-Advance has been installed system-wide.
+Advance (git package) has been installed system-wide.
 
   Binary:  /usr/bin/advance
   Catalog: /usr/share/advance/catalog/managers
   Manual:  man advance
+
+This package tracks the master branch. Rebuild it to pick up new commits.
 
 On first run, Advance enrolls detected package managers into
 $XDG_CONFIG_HOME/advance/managers.d (default: ~/.config/advance/managers.d).

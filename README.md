@@ -92,7 +92,7 @@ The installer automatically creates symlinks, deploys the man page, and enrolls 
 
 ### Arch Linux (PKGBUILD)
 
-A `PKGBUILD` is included for a system-wide install:
+A VCS `PKGBUILD` is included for a system-wide install. It builds `advance-git` from the latest commit on `master`, so rebuilding the package picks up new changes:
 
 ```bash
 git clone https://github.com/Stiggimy/advance.git
@@ -100,7 +100,7 @@ cd advance
 makepkg -si
 ```
 
-The package installs the binary to `/usr/bin/advance`, libraries to `/usr/lib/advance`, the catalog to `/usr/share/advance/catalog`, and the manual to `/usr/share/man/man1`. The catalog is enrolled into each user's config directory on first run (or via `advance catalog scan`).
+The package installs the binary to `/usr/bin/advance`, libraries to `/usr/lib/advance`, the catalog to `/usr/share/advance/catalog`, and the manual to `/usr/share/man/man1`. It provides `advance` and conflicts with a non-VCS `advance` package. The catalog is enrolled into each user's config directory on first run (or via `advance catalog scan`).
 
 ### XDG directories
 

@@ -1,9 +1,9 @@
-pkgbase = advance
-	pkgdesc = Universal modular system update manager with priority groups and snapshot support
+pkgbase = advance-git
+	pkgdesc = Universal modular system update manager with priority groups and snapshot support (git)
 	pkgver = 0.9.35
 	pkgrel = 1
 	url = https://github.com/Stiggimy/advance
-	install = advance.install
+	install = advance-git.install
 	arch = any
 	license = unknown
 	makedepends = git
@@ -21,7 +21,9 @@ pkgbase = advance
 	optdepends = curl: import manager configurations from a URL
 	optdepends = pacman-contrib: checkupdates support for Pacman/Yay/Paru
 	optdepends = systemd: background auto-update timers
-	source = advance::git+https://github.com/Stiggimy/advance.git#branch=master
+	provides = advance
+	conflicts = advance
+	source = advance-git::git+https://github.com/Stiggimy/advance.git#branch=master
 	sha256sums = SKIP
 
-pkgname = advance
+pkgname = advance-git
