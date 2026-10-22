@@ -37,6 +37,7 @@ probe_manager() {
         key="${key#"${key%%[![:space:]]*}"}"
         val="${val#"${val%%[![:space:]]*}"}"
         val="${val%"${val##*[![:space:]]}"}"
+        key="${key%$'\r'}"; val="${val%$'\r'}"
         case "$key" in
             REQUIRES_CMD) req="$val" ;;
             PROBE_ACTIVE_CMD) probe_cmd="$val" ;;
@@ -206,6 +207,7 @@ _load_single_conf() {
         [[ -z "$key" || "$key" == \#* ]] && continue
         key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
         value="${value#"${value%%[![:space:]]*}"}"; value="${value%"${value##*[![:space:]]}"}"
+        key="${key%$'\r'}"; value="${value%$'\r'}"
         case "$key" in
             NAME) name="$value" ;;
             EMOJI) emoji="$value" ;;
@@ -246,6 +248,7 @@ _load_single_conf() {
             [[ -z "$okey" || "$okey" == \#* ]] && continue
             okey="${okey#"${okey%%[![:space:]]*}"}"; okey="${okey%"${okey##*[![:space:]]}"}"
             ovalue="${ovalue#"${ovalue%%[![:space:]]*}"}"; ovalue="${ovalue%"${ovalue##*[![:space:]]}"}"
+            okey="${okey%$'\r'}"; ovalue="${ovalue%$'\r'}"
             case "$okey" in
                 NAME) name="$ovalue" ;;
                 EMOJI) emoji="$ovalue" ;;

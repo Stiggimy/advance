@@ -126,6 +126,7 @@ process_imported_conf() {
         [[ -z "$key" || "$key" == \#* ]] && continue
         key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
         value="${value#"${value%%[![:space:]]*}"}"; value="${value%"${value##*[![:space:]]}"}"
+        key="${key%$'\r'}"; value="${value%$'\r'}"
         case "$key" in
             NAME) name="$value" ;;
             EMOJI) emoji="$value" ;;
