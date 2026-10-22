@@ -4,8 +4,7 @@
 # Part of Advance Universal System Update Manager
 # ==============================================================================
 
-CUSTOM_DIR="$HOME/.config/advance/managers.d"
-OVERRIDES_DIR="$HOME/.config/advance/overrides.d"
+# CUSTOM_DIR and OVERRIDES_DIR are resolved by lib/xdg.sh
 
 # Resolves official catalog directory
 get_catalog_dir() {
@@ -13,6 +12,8 @@ get_catalog_dir() {
         echo "$CATALOG_DIR"
     elif [[ -n "${SOURCE_DIR:-}" && -d "${SOURCE_DIR:-}/catalog/managers" ]]; then
         echo "$SOURCE_DIR/catalog/managers"
+    elif [[ -d "$ADVANCE_DATA_DIR/catalog/managers" ]]; then
+        echo "$ADVANCE_DATA_DIR/catalog/managers"
     elif [[ -d "$HOME/.local/share/advance/catalog/managers" ]]; then
         echo "$HOME/.local/share/advance/catalog/managers"
     elif [[ -d "$HOME/.local/lib/advance/catalog/managers" ]]; then
@@ -98,14 +99,13 @@ auto_enroll_catalog() {
     return 0
 }
 
-# Detect newly installed tools from the catalog using ~/.cache/advance/catalog.probed
+# Detect newly installed tools from the catalog using the XDG cache probe file
 check_catalog_drift() {
     local cat_dir
     cat_dir=$(get_catalog_dir)
     [[ -z "$cat_dir" || ! -d "$cat_dir" ]] && return 0
-    local cache_dir="$HOME/.cache/advance"
-    local probe_file="$cache_dir/catalog.probed"
-    mkdir -p "$cache_dir"
+    local probe_file="$PROBE_CACHE_FILE"
+    mkdir -p "$(dirname "$probe_file")"
 
     # If first run, record all currently active managers so we don't spam
     if [[ ! -f "$probe_file" ]]; then
@@ -235,7 +235,7 @@ _load_single_conf() {
         esac
     done < "$conf"
 
-    # Tier 3: Apply drop-in overrides if present (~/.config/advance/overrides.d/<mgr>.conf)
+    # Tier 3: Apply drop-in overrides if present ($XDG_CONFIG_HOME/advance/overrides.d/<mgr>.conf)
     local base="${conf##*/}"
     base="${base%.conf}"
     local override_file="$OVERRIDES_DIR/$base.conf"

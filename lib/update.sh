@@ -49,7 +49,7 @@ do_update() {
             IFS=', ' read -r -a config_arr <<< "$EXCLUDE_PACKAGES"
             merged+=("${config_arr[@]}")
         fi
-        local excludes_file="$HOME/.config/advance/excludes"
+        local excludes_file="$EXCLUDES_FILE"
         if [[ -f "$excludes_file" ]]; then
             while IFS= read -r line || [[ -n "$line" ]]; do
                 line="${line%%#*}"
@@ -323,7 +323,7 @@ do_update() {
                 echo -e " $(e 🔄)${C_GREEN}self-update${C_RESET}                         Update the tool suite."
                 echo ""
                 echo -e "${C_BOLD}Groups:${C_RESET}"
-                echo -e "  Managers are organized in directories under ~/.config/advance/managers.d/."
+                echo -e "  Managers are organized in directories under $(tilde_path "$CUSTOM_DIR")/."
                 echo -e "  Each subdirectory is a group. Groups execute in order of group priority"
                 echo -e "  (default: system 100, others 50; configurable in 'advance config')."
                 echo -e "  Within each group, only the highest-priority available manager runs."

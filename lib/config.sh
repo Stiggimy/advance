@@ -4,7 +4,7 @@
 # Part of Advance Universal System Update Manager
 # ==============================================================================
 
-CONFIG_FILE="$HOME/.config/advance/config"
+# CONFIG_FILE is resolved by lib/xdg.sh
 
 # --- Internal Defaults ---
 USE_COLOR=true; USE_EMOJI=true
@@ -93,7 +93,7 @@ set_group_priority() {
 # --- Dismissable Tips / Notification System ---
 show_message() {
     local id="$1" text="$2"
-    local dismissed_file="$HOME/.config/advance/.dismissed_messages"
+    local dismissed_file="$DISMISSED_FILE"
     [[ -f "$dismissed_file" ]] && grep -qxF "$id" "$dismissed_file" && return
     echo -e "\n${C_BLUE}${C_BOLD}💡 $text${C_RESET}"
     if [[ -t 0 ]]; then

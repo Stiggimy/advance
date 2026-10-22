@@ -1341,13 +1341,13 @@ manage_custom_managers_menu() {
                     echo -e "🔙 Back\n───────\nReturn to the configuration menu." ;;
                 *)
                     m=$(echo "{}" | sed -E "s/^[[:space:]]*[^a-zA-Z0-9]*//; s/[[:space:]]*\\[(P:[0-9-]+|Solo)\\].*//; s/[[:space:]]+$//; s/[[:space:]]+/_/g")
-                    f=$(find "${CUSTOM_DIR:-$HOME/.config/advance/managers.d}" -iname "${m}.conf" 2>/dev/null | head -n 1)
+                    f=$(find "${CUSTOM_DIR}" -iname "${m}.conf" 2>/dev/null | head -n 1)
                     if [ -z "$f" ]; then
-                        f=$(grep -l -i "^NAME=${m//_/ }\$" "${CUSTOM_DIR:-$HOME/.config/advance/managers.d}"/*/*.conf "${CUSTOM_DIR:-$HOME/.config/advance/managers.d}"/*.conf 2>/dev/null | head -n 1)
+                        f=$(grep -l -i "^NAME=${m//_/ }\$" "${CUSTOM_DIR}"/*/*.conf "${CUSTOM_DIR}"/*.conf 2>/dev/null | head -n 1)
                     fi
                     if [ -n "$f" ]; then
                         grp=$(basename "$(dirname "$f")")
-                        grp_root=$(basename "${CUSTOM_DIR:-$HOME/.config/advance/managers.d}")
+                        grp_root=$(basename "${CUSTOM_DIR}")
                         [ "$grp" = "$grp_root" ] && grp="(standalone)"
                         awk -v grp="$grp" '\''
                             function val(line) { sub(/^[^=]*=/, "", line); return (line != "" ? line : "(none)") }
@@ -2679,7 +2679,7 @@ _menu_appearance() {
             *"Terminal Icons / Emojis"*) [[ "$USE_EMOJI" == true ]] && USE_EMOJI=false || USE_EMOJI=true ;;
             *"ANSI Syntax Colors"*) [[ "$USE_COLOR" == true ]] && USE_COLOR=false || USE_COLOR=true; setup_colors ;;
             *"Reset Dismissed Messages"*)
-                local d_file="$HOME/.config/advance/.dismissed_messages"
+                local d_file="$DISMISSED_FILE"
                 if [[ -f "$d_file" ]]; then
                     rm -f "$d_file"
                     ui_ok "Dismissed messages have been reset."
@@ -2771,7 +2771,7 @@ EOF
         prev_save=$(cat <<EOF
 💾 Save and Return
 ──────────────────
-Permanently write all changes made during this session to your configuration file (~/.config/advance/config).
+Permanently write all changes made during this session to your configuration file ($(tilde_path "$CONFIG_FILE")).
 EOF
 )
         prev_discard=$(cat <<EOF
@@ -2883,8 +2883,8 @@ manage_schedule() {
 
     if [[ "$choice" == *Disable* ]]; then
         systemctl --user disable --now advance-update.timer >/dev/null 2>&1
-        rm -f "$HOME/.config/systemd/user/advance-update.timer"
-        rm -f "$HOME/.config/systemd/user/advance-update.service"
+        rm -f "$XDG_CONFIG_HOME/systemd/user/advance-update.timer"
+        rm -f "$XDG_CONFIG_HOME/systemd/user/advance-update.service"
         systemctl --user daemon-reload >/dev/null 2>&1
         ui_ok "Auto-update schedule disabled and removed."
         return 0
@@ -2988,12 +2988,12 @@ manage_schedule() {
 
     [[ -z "$timer_setting" ]] && { ui_error "Invalid schedule settings."; return 1; }
 
-    local service_file="$HOME/.config/systemd/user/advance-update.service"
-    local timer_file="$HOME/.config/systemd/user/advance-update.timer"
+    local service_file="$XDG_CONFIG_HOME/systemd/user/advance-update.service"
+    local timer_file="$XDG_CONFIG_HOME/systemd/user/advance-update.timer"
     local advance_bin
     advance_bin=$(command -v advance 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")
 
-    mkdir -p "$HOME/.config/systemd/user"
+    mkdir -p "$XDG_CONFIG_HOME/systemd/user"
 
     cat <<EOF > "$service_file"
 [Unit]
