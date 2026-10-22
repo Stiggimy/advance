@@ -1,4 +1,4 @@
-.TH ADVANCE 1 "September 2026" "Universal Linux" "Update Manager"
+.TH ADVANCE 1 "October 2026" "Universal Linux" "Update Manager"
 .SH NAME
 advance \- Universal system update manager with modular plugins and snapshot integration
 .SH SYNOPSIS
@@ -6,7 +6,7 @@ advance \- Universal system update manager with modular plugins and snapshot int
 [\fIOPTIONS\fR] [\fISUBCOMMAND\fR]
 .SH DESCRIPTION
 .B advance
-is a modular, portable system update utility for Linux. Everything runs through configuration plugins organized into directory-based groups under \fB~/.config/advance/managers.d/\fR.
+is a modular, portable system update utility for Linux. Everything runs through configuration plugins organized into directory-based groups under \fB$XDG_CONFIG_HOME/advance/managers.d/\fR (default: \fB~/.config/advance/managers.d/\fR).
 .PP
 Advance automatically resolves package managers within each group by priority, runs pre-flight network connectivity checks, coordinates transactional pre-update and post-update system snapshots via \fBcheckpoint\fR, and handles failure recovery through automatic fallback chains.
 .PP
@@ -14,11 +14,11 @@ If an active package manager in a group encounters an error during updates, Adva
 
 .SH TARGETING & GROUPS
 .B Groups
-are defined by subdirectories inside \fB~/.config/advance/managers.d/\fR:
+are defined by subdirectories inside \fB$XDG_CONFIG_HOME/advance/managers.d/\fR (default \fB~/.config/advance/managers.d/\fR):
 .PP
 .RS 4
 .nf
-~/.config/advance/managers.d/
+$XDG_CONFIG_HOME/advance/managers.d/
 |-- system/                  (group: system)
 |   |-- pacman.conf          (priority 0)
 |   |-- yay.conf             (priority 10)
@@ -137,21 +137,42 @@ Manage official catalog recipes. \fBlist\fR displays all catalog recipes with in
 .B self-update
 Pull latest changes from the git repository and reinstall.
 
+.SH ENVIRONMENT
+Advance follows the XDG Base Directory specification. Set these variables to relocate its files:
+.TP
+.B XDG_CONFIG_HOME
+Base directory for configuration (default: \fB~/.config\fR). Advance uses \fB$XDG_CONFIG_HOME/advance/\fR.
+.TP
+.B XDG_DATA_HOME
+Base directory for data (default: \fB~/.local/share\fR). Advance uses \fB$XDG_DATA_HOME/advance/\fR for its catalog and per-user libraries.
+.TP
+.B XDG_STATE_HOME
+Base directory for persistent state (default: \fB~/.local/state\fR). Dismissed tips are stored in \fB$XDG_STATE_HOME/advance/dismissed_messages\fR.
+.TP
+.B XDG_CACHE_HOME
+Base directory for cache data (default: \fB~/.cache\fR). Catalog probe results are stored in \fB$XDG_CACHE_HOME/advance/\fR.
+.TP
+.B ADVANCE_CONFIG_DIR, ADVANCE_DATA_DIR, ADVANCE_STATE_DIR, ADVANCE_CACHE_DIR
+Override the corresponding Advance directory directly.
+.TP
+.B NO_COLOR
+When set to a non-empty value, disables ANSI colors.
+
 .SH CONFIGURATION FILES
 .TP
-.B ~/.config/advance/config
-Main configuration file in \fBKEY=VALUE\fR format. Managed via \fBadvance config\fR. Key settings include \fBAUTO_CONFIRM\fR (global auto-confirm default), \fBGROUP_PRIORITY_<name>\fR (integer group execution priority; higher value runs first), and \fBSKIP_CHECKPOINT_WARNING\fR (suppress prompt when Checkpoint is not installed).
+.B $XDG_CONFIG_HOME/advance/config
+Main configuration file in \fBKEY=VALUE\fR format (default \fB~/.config/advance/config\fR). Managed via \fBadvance config\fR. Key settings include \fBAUTO_CONFIRM\fR (global auto-confirm default), \fBGROUP_PRIORITY_<name>\fR (integer group execution priority; higher value runs first), and \fBSKIP_CHECKPOINT_WARNING\fR (suppress prompt when Checkpoint is not installed).
 .TP
-.B ~/.config/advance/excludes
+.B $XDG_CONFIG_HOME/advance/excludes
 List of package names to exclude from system updates (one package name per line, comments starting with \fB#\fR ignored).
 .TP
-.B ~/.local/share/advance/catalog/managers/
-Official upstream catalog recipes organized by category (\fBsystem\fR, \fBflatpak\fR, \fBsnap\fR, \fBbrew\fR, \fBnode\fR, \fBrust\fR, \fBpython\fR, \fBhardware\fR).
+.B $XDG_DATA_HOME/advance/catalog/managers/
+Official upstream catalog recipes organized by category (\fBsystem\fR, \fBflatpak\fR, \fBsnap\fR, \fBbrew\fR, \fBnode\fR, \fBrust\fR, \fBpython\fR, \fBhardware\fR). System packages install this under \fB/usr/share/advance/catalog/managers/\fR.
 .TP
-.B ~/.config/advance/managers.d/<group>/<manager>.conf
+.B $XDG_CONFIG_HOME/advance/managers.d/<group>/<manager>.conf
 Active enrolled manager configurations or symlinks pointing to official catalog recipes.
 .TP
-.B ~/.config/advance/overrides.d/<manager>.conf
+.B $XDG_CONFIG_HOME/advance/overrides.d/<manager>.conf
 Optional user drop-in override files. Values defined here take precedence over catalog files without modifying upstream recipes. Supported fields:
 .RS
 .IP \(bu 2
