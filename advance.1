@@ -108,6 +108,9 @@ Force manual confirmation mode for all managers. Strips auto-confirm flags (\fBF
 
 .SS General Options
 .TP
+.BR \-\-changelog " [" \fIVERSION\fR "]"
+Display formatted release notes from the changelog. If executed interactively in a terminal without arguments and \fBfzf\fR is available, launches an interactive version browser.
+.TP
 .BR \-V ", " \-\-version
 Print version information and exit.
 .TP
@@ -118,6 +121,9 @@ Enable detailed debug logs.
 Display command usage and options.
 
 .SS Subcommands
+.TP
+.B changelog \fR[\fIVERSION\fR]
+Browse interactive release history or print formatted release notes for a specific version (or \fB\-\-latest\fR).
 .TP
 .B config
 Open the interactive configuration menu (requires \fBfzf\fR), including visual group & manager priority ordering (with \fBAlt+Up\fR/\fBAlt+Down\fR reordering hotkeys and automatic conflict-free renumbering), guided package manager creation, non-destructive flag editing, and general preferences.

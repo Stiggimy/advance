@@ -173,6 +173,7 @@ do_update() {
 
     load_config; setup_colors; load_custom_managers
     if [[ "$1" == "catalog" ]]; then catalog_cli "$2" "$3"; return $?; fi
+    if [[ "$1" == "changelog" ]]; then show_changelog "$2"; return $?; fi
     if [[ "$1" == "config" ]]; then
         ensure_menu_loaded
         if [[ "$2" == "export" ]]; then config_export "$3"; return 0;
@@ -275,6 +276,14 @@ do_update() {
             -i|--interactive) is_interactive=true; shift ;;
             -v|--verbose|--debug) VERBOSE=true; shift ;;
             -V|--version) echo "Advance v$VERSION${BUILD:+ (build $BUILD)}"; exit 0 ;;
+            --changelog=*)
+                show_changelog "${1#*=}"; exit $? ;;
+            --changelog)
+                if [[ "$2" =~ ^(--latest|--all|all|current|--current|-h|--help|-V|--version)$ || ( -n "$2" && "$2" != -* ) ]]; then
+                    show_changelog "$2"; exit $?
+                else
+                    show_changelog; exit $?
+                fi ;;
             -h|--help)
                 echo -e "${C_YELLOW}${C_BOLD}Advance v$VERSION${BUILD:+ (build $BUILD)}${C_RESET}"
                 echo -e "Usage: ${C_GREEN}advance [OPTIONS] [SUBCOMMAND]${C_RESET}"
@@ -310,6 +319,7 @@ do_update() {
                 echo -e " $(e 🙋)${C_PURP}-i,    --interactive${C_RESET}               Force manual confirmation mode for all managers."
                 echo ""
                 echo -e "${C_BOLD}General:${C_RESET}"
+                echo -e " $(e 📜)${C_PURP}       --changelog [ver]${C_RESET}          View release notes or open FZF browser."
                 echo -e " $(e ℹ️)${C_PURP}-V,    --version${C_RESET}                   Print version and exit."
                 echo -e " $(e 🔍)${C_PURP}-v,    --verbose, --debug${C_RESET}          Enable debug logs."
                 echo -e " $(e ❓)${C_PURP}-h,    --help${C_RESET}                      Display this help and exit."
@@ -323,6 +333,7 @@ do_update() {
                 echo -e "        ${C_GREEN}catalog scan${C_RESET}                    Scan system and auto-enroll available tools."
                 echo -e "        ${C_GREEN}catalog enroll \e[3m<mgr>\e[0m${C_RESET}            Enroll a manager from the catalog."
                 echo -e "        ${C_GREEN}catalog remove \e[3m<mgr>\e[0m${C_RESET}            Remove an enrolled manager."
+                echo -e " $(e 📜)${C_GREEN}changelog [version]${C_RESET}                 View changelog or open interactive release notes browser."
                 echo -e " $(e 📅)${C_GREEN}schedule${C_RESET}                            Configure background auto-updates."
                 echo -e " $(e 🔄)${C_GREEN}self-update${C_RESET}                         Update the tool suite."
                 echo ""

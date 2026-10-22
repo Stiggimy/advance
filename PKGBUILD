@@ -43,6 +43,8 @@ package() {
 
     install -d "$pkgdir/usr/share/advance"
     cp -a "$pkgname/catalog" "$pkgdir/usr/share/advance/"
+    install -Dm644 "$pkgname/CHANGELOG.md" "$pkgdir/usr/share/advance/CHANGELOG.md"
 
     install -Dm644 "$pkgname/README.md" "$pkgdir/usr/share/doc/advance/README.md"
+    install -Dm644 "$pkgname/CHANGELOG.md" "$pkgdir/usr/share/doc/advance/CHANGELOG.md"
 }

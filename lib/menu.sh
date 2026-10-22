@@ -350,18 +350,26 @@ browse_catalog_menu() {
     fi
 
     while true; do
-        local cat_confs=()
         local menu_items=()
         while IFS= read -r conf; do
             [[ ! -f "$conf" ]] && continue
             local fname="${conf##*/}"
-            local gname
-            gname=$(basename "$(dirname "$conf")")
+            local gdir="${conf%/*}"
+            local gname="${gdir##*/}"
             [[ "$gname" == "managers" ]] && gname=""
-            local mname req
-            mname=$(grep '^NAME=' "$conf" 2>/dev/null | head -n 1 | cut -d'=' -f2-)
-            req=$(grep '^REQUIRES_CMD=' "$conf" 2>/dev/null | head -n 1 | cut -d'=' -f2-)
-            [[ -z "$req" ]] && req=$(grep '^REQUIRES_BIN=' "$conf" 2>/dev/null | head -n 1 | cut -d'=' -f2-)
+            local mname="" req="" probe_cmd="" key val
+            while IFS='=' read -r key val || [[ -n "$key" ]]; do
+                [[ -z "$key" || "$key" == \#* ]] && continue
+                key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
+                val="${val#"${val%%[![:space:]]*}"}"; val="${val%"${val##*[![:space:]]}"}"
+                key="${key%$'\r'}"; val="${val%$'\r'}"
+                case "$key" in
+                    NAME) mname="$val" ;;
+                    REQUIRES_CMD) req="$val" ;;
+                    REQUIRES_BIN) [[ -z "$req" ]] && req="$val" ;;
+                    PROBE_ACTIVE_CMD) probe_cmd="$val" ;;
+                esac
+            done < "$conf"
 
             local status_tag="[Not installed]"
             local enrolled_file="$CUSTOM_DIR/$gname/$fname"
@@ -373,49 +381,38 @@ browse_catalog_menu() {
                 else
                     status_tag="[Active - Custom]"
                 fi
-            elif probe_manager "$conf"; then
-                status_tag="[Available on system]"
+            elif [[ -z "$req" ]] || command -v "$req" >/dev/null 2>&1; then
+                if [[ -z "$probe_cmd" ]] || eval "$probe_cmd" >/dev/null 2>&1; then
+                    status_tag="[Available on system]"
+                fi
             fi
 
-            menu_items+=("$(e 📦)${mname:-$fname} ($gname) $status_tag")
-            cat_confs+=("$conf")
+            menu_items+=("$(e 📦)${mname:-$fname} ($gname) $status_tag"$'\t'"$conf")
         done < <(find "$cat_dir" -type f -name "*.conf" | sort)
 
-        menu_items+=("---")
-        menu_items+=("$(e 🔙)Back")
+        menu_items+=("---"$'\t'"sep")
+        menu_items+=("$(e 🔙)Back"$'\t'"back")
 
         local sel
         sel=$(printf "%s\n" "${menu_items[@]}" | fzf --height 20 --reverse \
+            --delimiter=$'\t' --with-nth=1 \
             --header "--- Official Manager Catalog ---" \
-            --preview 'case "{}" in
-                *Back*) echo "Return to previous menu." ;;
+            --preview 'case "{2}" in
+                back) echo "Return to previous menu." ;;
+                sep) echo "Select a recipe above." ;;
                 *)
-                    m=$(echo "{}" | sed -E "s/^[[:space:]]*[^a-zA-Z0-9]*([a-zA-Z0-9_.-]+).*/\1/")
-                    f=$(find "'"$cat_dir"'" -iname "${m}*.conf" 2>/dev/null | head -n 1)
-                    if [ -z "$f" ]; then
-                        f=$(grep -l -i "^NAME=${m}\$" "'"$cat_dir"'"/*/*.conf "'"$cat_dir"'"/*.conf 2>/dev/null | head -n 1)
-                    fi
-                    if [ -n "$f" ]; then
+                    if [ -f "{2}" ]; then
                         echo "Recipe Details:"
                         echo "──────────────────────────────"
-                        cat "$f"
+                        cat "{2}"
                     fi
                     ;;
             esac' --preview-window=right:55%:wrap)
 
-        [[ -z "$sel" || "$sel" == *Back* ]] && return 0
+        [[ -z "$sel" || "$sel" == *$'\t'back ]] && return 0
 
-        local chosen_conf=""
-        local idx=0
-        for item in "${menu_items[@]}"; do
-            if [[ "$item" == "$sel" ]]; then
-                chosen_conf="${cat_confs[$idx]}"
-                break
-            fi
-            ((idx++))
-        done
-
-        [[ -z "$chosen_conf" ]] && continue
+        local chosen_conf="${sel#*$'\t'}"
+        [[ -z "$chosen_conf" || "$chosen_conf" == "sep" || ! -f "$chosen_conf" ]] && continue
 
         local fname="${chosen_conf##*/}"
         local gname
@@ -1223,13 +1220,13 @@ manage_custom_managers_menu() {
 
         local opt=()
         local opt_meta=()
-        opt+=("--- ACTIONS ---")
+        opt+=("--- ACTIONS ---"$'\t'"sep")
         opt_meta+=("sep")
-        opt+=("$(e 🔍)Scan System for Tools (Auto-Enroll)")
+        opt+=("$(e 🔍)Scan System for Tools (Auto-Enroll)"$'\t'"action:scan")
         opt_meta+=("action:scan")
-        opt+=("$(e 📚)Browse Official Catalog...")
+        opt+=("$(e 📚)Browse Official Catalog..."$'\t'"action:catalog")
         opt_meta+=("action:catalog")
-        opt+=("$(e ➕)Add Custom Package Manager...")
+        opt+=("$(e ➕)Add Custom Package Manager..."$'\t'"action:add")
         opt_meta+=("action:add")
 
         # Show groups in execution order with their managers sorted by priority descending
@@ -1241,7 +1238,7 @@ manage_custom_managers_menu() {
             [[ "$grp_enabled" != "true" ]] && grp_status="Disabled"
             local grp_pri
             grp_pri=$(get_group_priority "$g")
-            opt+=("--- [#$g_rank] $g ($grp_status) [Order P:$grp_pri] ---")
+            opt+=("--- [#$g_rank] $g ($grp_status) [Order P:$grp_pri] ---"$'\t'"group:$g")
             opt_meta+=("group:$g")
 
             local g_indices=()
@@ -1269,7 +1266,7 @@ manage_custom_managers_menu() {
                 fi
                 local row_str
                 row_str=$(printf "  %s%-18s [P:%-3s]  %s" "$(e "$m_emoji")" "$name" "$pri" "$role_badge")
-                opt+=("$row_str")
+                opt+=("$row_str"$'\t'"${CUSTOM_FILES[$i]}"$'\t'"$g")
                 opt_meta+=("mgr:$name")
             done
         done
@@ -1282,7 +1279,7 @@ manage_custom_managers_menu() {
             break
         done
         if [[ "$has_standalone" == true ]]; then
-            opt+=("--- standalone (run independently) ---")
+            opt+=("--- standalone (run independently) ---"$'\t'"sep_standalone")
             opt_meta+=("sep")
             for ((i=0; i<${#CUSTOM_NAMES[@]}; i++)); do
                 [[ -n "${CUSTOM_GROUPS[$i]}" ]] && continue
@@ -1297,14 +1294,14 @@ manage_custom_managers_menu() {
                 fi
                 local row_str
                 row_str=$(printf "  %s%-18s [Solo]   %s" "$(e "$m_emoji")" "$name" "$role_badge")
-                opt+=("$row_str")
+                opt+=("$row_str"$'\t'"${CUSTOM_FILES[$i]}"$'\t'"(standalone)")
                 opt_meta+=("mgr:$name")
             done
         fi
 
-        opt+=("---")
+        opt+=("---"$'\t'"sep")
         opt_meta+=("sep")
-        opt+=("$(e 🔙)Back")
+        opt+=("$(e 🔙)Back"$'\t'"back")
         opt_meta+=("back")
 
         # Restore cursor position by target_meta if set, otherwise last_idx
@@ -1323,33 +1320,28 @@ manage_custom_managers_menu() {
         [[ $last_idx -gt 0 ]] && bind_args=(--bind "start:pos($((last_idx + 1)))")
         local fzf_out
         fzf_out=$(printf "%s\n" "${opt[@]}" | fzf --height 22 --reverse "${bind_args[@]}" \
+            --delimiter=$'\t' --with-nth=1 \
             --expect=alt-up,alt-down,ctrl-up,ctrl-down \
             --header "--- Package Managers & Execution Order (Alt+Up/Down: Reorder | Enter: Configure) ---" \
-            --preview 'case "{}" in
-                *Scan*System*for*Tools*|*Auto-Enroll*)
+            --preview 'case "{2}" in
+                action:scan)
                     echo -e "🔍 Scan System for Tools\n────────────────────────\nProbes your system and automatically enrolls any installed package managers from the official catalog into Advance as clean symlinks." ;;
-                *Browse*Official*Catalog*)
+                action:catalog)
                     echo -e "📚 Browse Official Catalog\n──────────────────────────\nView all official recipes (system, containers, language runtimes, firmware) and easily enroll or un-enroll them." ;;
-                *Add*Custom*Package*Manager*|*Add*Package*Manager*)
+                action:add)
                     echo -e "➕ Add Package Manager\n──────────────────────\nRegister a new package manager or custom update script.\n\nYou can configure custom update commands, group priorities, auto-confirm flags, and required binaries." ;;
-                ---*ACTIONS*)
-                    echo -e "⚡ Actions\n──────────\nCommon management options." ;;
-                ---*standalone*)
+                sep_standalone)
                     echo -e "📦 Standalone Managers\n──────────────────────\nThese managers run independently and do not compete with any group." ;;
-                ---*)
+                sep)
+                    echo -e "⚡ Actions\n──────────\nCommon management options." ;;
+                group:*)
                     echo -e "📁 Group Execution Header\n─────────────────────────\n• Press Enter to toggle this group ON/OFF or adjust its execution order.\n• Press Alt+Up / Alt+Down directly in the list to move this group earlier or later!\n\nPriority Rule:\n• Groups run in descending order (#1 runs first, #2 second, etc.).\n• Inside each group, only the ★ Active Winner runs; ↳ Standby managers act as automatic fallbacks." ;;
-                *Back*)
+                back)
                     echo -e "🔙 Back\n───────\nReturn to the configuration menu." ;;
                 *)
-                    m=$(echo "{}" | sed -E "s/^[[:space:]]*[^a-zA-Z0-9]*//; s/[[:space:]]*\\[(P:[0-9-]+|Solo)\\].*//; s/[[:space:]]+$//; s/[[:space:]]+/_/g")
-                    f=$(find "${CUSTOM_DIR}" -iname "${m}.conf" 2>/dev/null | head -n 1)
-                    if [ -z "$f" ]; then
-                        f=$(grep -l -i "^NAME=${m//_/ }\$" "${CUSTOM_DIR}"/*/*.conf "${CUSTOM_DIR}"/*.conf 2>/dev/null | head -n 1)
-                    fi
-                    if [ -n "$f" ]; then
-                        grp=$(basename "$(dirname "$f")")
-                        grp_root=$(basename "${CUSTOM_DIR}")
-                        [ "$grp" = "$grp_root" ] && grp="(standalone)"
+                    f="{2}"
+                    grp="{3}"
+                    if [ -f "$f" ]; then
                         awk -v grp="$grp" '\''
                             function val(line) { sub(/^[^=]*=/, "", line); return (line != "" ? line : "(none)") }
                             /^NAME=/            { name=val($0) }
@@ -1400,9 +1392,8 @@ manage_custom_managers_menu() {
             esac' --preview-window=right:55%:wrap)
 
         local key choice
-        key=$(printf "%s\n" "$fzf_out" | sed -n '1p')
-        choice=$(printf "%s\n" "$fzf_out" | sed -n '2p')
-        [[ -z "$choice" || "$choice" == *Back* ]] && return 0
+        { IFS= read -r key; IFS= read -r choice; } <<< "$fzf_out"
+        [[ -z "$choice" || "$choice" == *$'\t'back ]] && return 0
 
         # Resolve selected index and metadata
         local idx=0 sel_meta=""
@@ -2703,6 +2694,31 @@ manage_config() {
     local init_auto_confirm=$AUTO_CONFIRM
     local init_skip_checkpoint_warning=$SKIP_CHECKPOINT_WARNING
     local last_idx=0
+    local mgr_summary
+    mgr_summary=$(get_active_managers_summary)
+    local prev_changelog prev_save prev_discard
+    prev_changelog=$(cat <<EOF
+📜 View Changelog / What's New
+──────────────────────────────
+Browse version release notes and update history.
+
+Select this item to open the interactive version browser.
+
+$(display_changelog "latest" 2>/dev/null || true)
+EOF
+)
+    prev_save=$(cat <<EOF
+💾 Save and Return
+──────────────────
+Permanently write all changes made during this session to your configuration file ($(tilde_path "$CONFIG_FILE")).
+EOF
+)
+    prev_discard=$(cat <<EOF
+❌ Discard and Exit
+───────────────────
+Revert all settings back to their original values from when this menu was opened and exit.
+EOF
+)
 
     while true; do
         local opt=(
@@ -2710,14 +2726,14 @@ manage_config() {
             "$(e 📸)Snapshots & Safety (Checkpoint)"
             "$(e ⚡)Execution & Error Handling"
             "$(e 🎨)Interface & Appearance"
+            "$(e 📜)View Changelog / What's New"
+            "$(e 🚧)Features in Development     [Preview]"
             "---"
             "$(e ✅)Save and Return"
             "$(e ❌)Discard and Exit"
         )
 
-        local mgr_summary
-        mgr_summary=$(get_active_managers_summary)
-        local prev_pkgs prev_snaps prev_exec prev_ui prev_save prev_discard
+        local prev_pkgs prev_snaps prev_exec prev_ui
         prev_pkgs=$(cat <<EOF
 📦 Package Managers
 ───────────────────
@@ -2769,16 +2785,24 @@ Current Settings:
 • Syntax Colors:      $USE_COLOR
 EOF
 )
-        prev_save=$(cat <<EOF
-💾 Save and Return
-──────────────────
-Permanently write all changes made during this session to your configuration file ($(tilde_path "$CONFIG_FILE")).
-EOF
-)
-        prev_discard=$(cat <<EOF
-❌ Discard and Exit
-───────────────────
-Revert all settings back to their original values from when this menu was opened and exit.
+        prev_dev=$(cat <<EOF
+🚧 Features in Development (Coming Soon)
+─────────────────────────────────────────
+Upcoming features currently planned and in active development:
+
+• 🌐 Full CLI Localization & i18n
+  gettext / multi-language translation catalogs for all CLI prompts.
+
+• 🧙 Interactive Backend Wizard in Checkpoint
+  Guided step-by-step setup for custom snapshot backends (similar
+  to Advance's package manager wizard).
+
+• 🎛️ Granular Manager Options & Step Skip
+  More granular options and optional step skipping in the custom
+  manager wizard.
+
+• 🖥️ Modern Graphical Interface (GUI)
+  Standalone companion GUI for visual updates and snapshot restores.
 EOF
 )
 
@@ -2791,6 +2815,8 @@ EOF
             export CFG_PREV_SNAPS="$prev_snaps"
             export CFG_PREV_EXEC="$prev_exec"
             export CFG_PREV_UI="$prev_ui"
+            export CFG_PREV_CHANGELOG="$prev_changelog"
+            export CFG_PREV_DEV="$prev_dev"
             export CFG_PREV_SAVE="$prev_save"
             export CFG_PREV_DISCARD="$prev_discard"
             printf "%s\n" "${opt[@]}" | fzf --height 20 --reverse "${bind_args[@]}" \
@@ -2800,6 +2826,8 @@ EOF
                     *Snapshots*)        printf "%s\n" "$CFG_PREV_SNAPS" ;;
                     *Execution*)        printf "%s\n" "$CFG_PREV_EXEC" ;;
                     *Interface*)        printf "%s\n" "$CFG_PREV_UI" ;;
+                    *Changelog*|*What*New*) printf "%s\n" "$CFG_PREV_CHANGELOG" ;;
+                    *Features*in*Development*) printf "%s\n" "$CFG_PREV_DEV" ;;
                     *Save*)             printf "%s\n" "$CFG_PREV_SAVE" ;;
                     *Discard*)          printf "%s\n" "$CFG_PREV_DISCARD" ;;
                     *) echo "Select a category to view details and options." ;;
@@ -2815,10 +2843,38 @@ EOF
         done
 
         case "$choice" in
-            *"Package Managers"*) manage_custom_managers_menu ;;
+            *"Package Managers"*)
+                manage_custom_managers_menu
+                mgr_summary=$(get_active_managers_summary)
+                ;;
             *"Snapshots & Safety"*) _menu_snapshots ;;
             *"Execution & Error Handling"*) _menu_execution ;;
             *"Interface & Appearance"*) _menu_appearance ;;
+            *"View Changelog"*|*"What's New"*)
+                browse_changelog_interactive
+                local r=$?
+                if [[ $r -eq 2 ]]; then
+                    echo ""
+                    read -rp "Press Enter to return to configuration menu..." _dummy
+                fi
+                ;;
+            *"Features in Development"*)
+                echo -e "\n${C_BOLD}${C_YELLOW}🚧 Features in Development (Coming Soon)${C_RESET}"
+                echo "─────────────────────────────────────────"
+                echo "• 🌐 Full CLI Localization & i18n"
+                echo "  gettext / multi-language translation catalogs for CLI strings."
+                echo ""
+                echo "• 🧙 Interactive Backend Wizard in Checkpoint"
+                echo "  Guided step-by-step setup for custom snapshot backends."
+                echo ""
+                echo "• 🎛️ Granular Manager Options & Step Skip"
+                echo "  Granular control and optional skipping in the manager wizard."
+                echo ""
+                echo "• 🖥️ Modern Graphical Interface (GUI)"
+                echo "  Desktop GUI companion for updates and snapshot restores."
+                echo ""
+                read -rp "Press Enter to return to configuration menu..." _dummy
+                ;;
             *"Save and Return"*) save_config; ui_ok "Configuration saved successfully."; break ;;
             *"Discard and Exit"*)
                 USE_EMOJI=$init_emoji; USE_COLOR=$init_color
@@ -2839,6 +2895,10 @@ self_update() {
         ui_info "This copy of Advance was installed by a package manager; update it with your system package manager instead."
         return 1
     fi
+    local old_ver="$VERSION"
+    local old_commit
+    old_commit=$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null || true)
+
     (
         cd "$SOURCE_DIR" || exit 1
         if git remote | grep -qx 'origin'; then
@@ -2858,6 +2918,21 @@ self_update() {
         fi
         ./install.sh
     ) || return 1
+
+    local new_commit
+    new_commit=$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null || true)
+    local new_ver
+    new_ver=$(grep '^VERSION=' "$SOURCE_DIR/advance" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+    new_ver="${new_ver:-$VERSION}"
+
+    if [[ "$old_ver" != "$new_ver" || ("$old_commit" != "$new_commit" && -n "$old_commit") ]]; then
+        echo ""
+        ui_ok "Advance updated successfully to v$new_ver!"
+        echo ""
+        ui_info "${C_BOLD}What's New in v$new_ver:${C_RESET}"
+        display_changelog "$new_ver" || display_changelog "latest"
+        echo ""
+    fi
 
     if command -v checkpoint >/dev/null 2>&1; then
         echo ""

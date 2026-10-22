@@ -4,12 +4,14 @@
 # ==============================================================================
 
 VERSION="0.9.35"
-BUILD="82"
+BUILD="84"
 
 # Auto-detect source directory (handles symlinks seamlessly)
 detect_source_dir() {
+    local raw="$0"
+    [[ "$raw" != */* ]] && raw="$(command -v "$raw" 2>/dev/null || echo "$raw")"
     local script_path
-    script_path="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+    script_path="$(readlink -f "$raw" 2>/dev/null || echo "$raw")"
     local script_dir
     script_dir="$(dirname "$script_path")"
     if git -C "$script_dir" rev-parse --show-toplevel >/dev/null 2>&1; then

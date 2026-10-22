@@ -363,8 +363,9 @@ load_custom_managers() {
     # If managers directory has no configs at all, run auto-enrollment from catalog
     if ! find "$CUSTOM_DIR" -name "*.conf" 2>/dev/null | grep -q .; then
         auto_enroll_catalog true
-    else
+    elif [[ "${CATALOG_DRIFT_CHECKED:-false}" != true ]]; then
         check_catalog_drift
+        CATALOG_DRIFT_CHECKED=true
     fi
 
     # Discover grouped manager directories and get group execution priority
