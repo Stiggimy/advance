@@ -108,7 +108,10 @@ Force manual confirmation mode for all managers. Strips auto-confirm flags (\fBF
 
 .SS General Options
 .TP
-.BR \-\-changelog " [" \fIVERSION\fR "]"
+.BR \-U ", " \-\-self\-update ", " \-\-selfupdate
+Update the Advance and Checkpoint tool suite by pulling latest changes from the git repository and reinstalling.
+.TP
+.BR \-c ", " \-\-changelog " [" \fIVERSION\fR "]"
 Display formatted release notes from the changelog. If executed interactively in a terminal without arguments and \fBfzf\fR is available, launches an interactive version browser.
 .TP
 .BR \-V ", " \-\-version
@@ -140,8 +143,8 @@ Open the interactive systemd auto-update scheduling wizard.
 .B catalog \fR[\fBlist\fR|\fBscan\fR|\fBenroll \fIMGR\fR|\fBremove \fIMGR\fR]
 Manage official catalog recipes. \fBlist\fR displays all catalog recipes with installation and enrollment status; \fBscan\fR auto-enrolls all detected tools; \fBenroll\fR symlinks a catalog recipe into active managers; \fBremove\fR disables an active manager.
 .TP
-.B self-update
-Pull latest changes from the git repository and reinstall.
+.BR self\-update ", " selfupdate
+Pull latest changes from the git repository and reinstall the tool suite.
 
 .SH ENVIRONMENT
 Advance follows the XDG Base Directory specification. Set these variables to relocate its files:

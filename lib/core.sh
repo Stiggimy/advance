@@ -331,7 +331,7 @@ show_changelog() {
     local req_ver="$1"
     if [[ "$req_ver" == "-h" || "$req_ver" == "--help" ]]; then
         echo -e "${C_BOLD}Usage:${C_RESET} advance changelog [VERSION|--latest|all|current]"
-        echo -e "       advance --changelog [VERSION|--latest|all|current]"
+        echo -e "       advance -c, --changelog [VERSION|--latest|all|current]"
         echo ""
         echo "Display release notes and version history."
         echo ""
@@ -366,4 +366,86 @@ show_changelog() {
 
     display_changelog "latest"
     return $?
+}
+
+# --- Interactive Dependency Auto-Installer ---
+ensure_fzf() {
+    command -v fzf >/dev/null 2>&1 && return 0
+    if [[ -x "$HOME/.local/bin/fzf" ]]; then
+        [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && PATH="$HOME/.local/bin:$PATH"
+        return 0
+    elif [[ -x "$HOME/.fzf/bin/fzf" ]]; then
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$HOME/.fzf/bin/fzf" "$HOME/.local/bin/fzf"
+        [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && PATH="$HOME/.local/bin:$PATH"
+        return 0
+    fi
+
+    ui_info "fzf is required for interactive menus. Installing automatically..."
+
+    local installed=false
+    local cat_dir="${CATALOG_DIR:-}"
+    if [[ -z "$cat_dir" ]] && declare -f get_catalog_dir >/dev/null 2>&1; then
+        cat_dir=$(get_catalog_dir 2>/dev/null || echo "")
+    fi
+    if [[ -z "$cat_dir" || ! -d "$cat_dir" ]]; then
+        for cand in "$HOME/.local/share/advance/catalog" "$HOME/.local/share/checkpoint/catalog" "/usr/share/advance/catalog" "${SOURCE_DIR:-}/catalog" "${SOURCE_DIR:-}/../advance/catalog"; do
+            if [[ -d "$cand" ]]; then cat_dir="$cand"; break; fi
+        done
+    fi
+
+    local -a conf_dirs=()
+    [[ -n "${CUSTOM_DIR:-}" && -d "$CUSTOM_DIR" ]] && conf_dirs+=("$CUSTOM_DIR")
+    [[ -n "$cat_dir" && -d "$cat_dir" ]] && conf_dirs+=("$cat_dir")
+
+    for dir in "${conf_dirs[@]}"; do
+        while IFS= read -r conf; do
+            [[ ! -f "$conf" ]] && continue
+            local req probe_cmd inst_cmd
+            req=$(grep '^REQUIRES_CMD=' "$conf" 2>/dev/null | head -1 | cut -d'=' -f2-)
+            probe_cmd=$(grep '^PROBE_ACTIVE_CMD=' "$conf" 2>/dev/null | head -1 | cut -d'=' -f2-)
+            inst_cmd=$(grep '^INSTALL_CMD=' "$conf" 2>/dev/null | head -1 | cut -d'=' -f2-)
+
+            if [[ -n "$inst_cmd" && -n "$req" ]] && command -v "$req" >/dev/null 2>&1; then
+                if [[ -z "$probe_cmd" ]] || eval "$probe_cmd" >/dev/null 2>&1; then
+                    # Avoid non-interactive password prompt hangs
+                    if [[ "$inst_cmd" == *sudo* ]] && ! sudo -n true 2>/dev/null && [ ! -t 0 ]; then
+                        continue
+                    fi
+                    ui_info "Installing fzf via $req ($inst_cmd fzf)..."
+                    if eval "$inst_cmd fzf"; then
+                        installed=true
+                        break 2
+                    fi
+                fi
+            fi
+        done < <(find "$dir" -type f -name "*.conf" 2>/dev/null | sort)
+    done
+
+    # Fallback to user-level binary installer if package manager failed or unavailable
+    if ! command -v fzf >/dev/null 2>&1; then
+        local fzf_dir="$HOME/.fzf"
+        if command -v git >/dev/null 2>&1; then
+            ui_info "Attempting user-level fzf installation via official repository..."
+            if [[ ! -d "$fzf_dir" ]]; then
+                git clone --depth 1 https://github.com/junegunn/fzf.git "$fzf_dir" >/dev/null 2>&1 || true
+            fi
+            if [[ -x "$fzf_dir/install" ]]; then
+                "$fzf_dir/install" --bin >/dev/null 2>&1 || true
+                if [[ -x "$fzf_dir/bin/fzf" ]]; then
+                    mkdir -p "$HOME/.local/bin"
+                    ln -sf "$fzf_dir/bin/fzf" "$HOME/.local/bin/fzf"
+                    [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && PATH="$HOME/.local/bin:$PATH"
+                fi
+            fi
+        fi
+    fi
+
+    if command -v fzf >/dev/null 2>&1; then
+        ui_ok "fzf installed successfully!"
+        return 0
+    else
+        ui_error "Failed to install fzf automatically. Please install fzf manually."
+        return 1
+    fi
 }

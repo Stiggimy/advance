@@ -311,8 +311,10 @@ get_active_managers_summary() {
         done
         local grp_col
         grp_col=$(printf "#%-2d %-12s (P:%-3s)" "$rank" "[$g]" "$grp_pri")
+        local sym_pause="||" sym_star="*" sym_none="x"
+        [[ "$USE_EMOJI" == true ]] && sym_pause="⏸" sym_star="★" sym_none="✖"
         if [[ "$grp_enabled" != "true" ]]; then
-            out+="  $grp_col → ⏸ [Group Disabled]\n"
+            out+="  $grp_col → $sym_pause [Group Disabled]\n"
         elif [[ -n "$best_name" ]]; then
             local sb_str=""
             if [[ ${#standbys[@]} -gt 0 ]]; then
@@ -320,9 +322,9 @@ get_active_managers_summary() {
                 printf -v sb_joined "%s, " "${standbys[@]}"
                 sb_str="  (standby: ${sb_joined%, })"
             fi
-            out+="  $grp_col → ★ $best_name [P:$best_pri]$sb_str\n"
+            out+="  $grp_col → $sym_star $best_name [P:$best_pri]$sb_str\n"
         else
-            out+="  $grp_col → ✖ [No available manager]\n"
+            out+="  $grp_col → $sym_none [No available manager]\n"
         fi
     done
 
@@ -334,9 +336,10 @@ get_active_managers_summary() {
         solo_active+=("${CUSTOM_NAMES[$i]}")
     done
     if [[ ${#solo_active[@]} -gt 0 ]]; then
-        local solo_joined
+        local solo_joined sym_star="*"
+        [[ "$USE_EMOJI" == true ]] && sym_star="★"
         printf -v solo_joined "%s, " "${solo_active[@]}"
-        out+="  •   [standalone]         → ★ ${solo_joined%, }\n"
+        out+="  •   [standalone]         → $sym_star ${solo_joined%, }\n"
     fi
     printf "%b" "$out"
 }
@@ -1194,17 +1197,17 @@ _format_group_order_preview() {
         local m_en="${CUSTOM_ENABLEDS[$idx]}"
         local badge=""
         if [[ "$m_en" != "true" ]]; then
-            badge="[○ Disabled]"
+            badge="[○ Disabled]"; [[ "$USE_EMOJI" != true ]] && badge="[OFF Disabled]"
         elif ! _is_mgr_available "$idx"; then
-            badge="[✖ Missing Binary]"
+            badge="[✖ Missing Binary]"; [[ "$USE_EMOJI" != true ]] && badge="[x Missing Binary]"
         elif [[ "$grp_enabled" != "true" ]]; then
-            badge="[⏸ Group Disabled]"
+            badge="[⏸ Group Disabled]"; [[ "$USE_EMOJI" != true ]] && badge="[-- Group Disabled]"
         elif [[ "$has_winner" == false ]]; then
             has_winner=true
-            badge="[★ Active Winner]"
+            badge="[★ Active Winner]"; [[ "$USE_EMOJI" != true ]] && badge="[* Active Winner]"
         else
             ((++sb_rank))
-            badge="[↳ Standby #$sb_rank]"
+            badge="[↳ Standby #$sb_rank]"; [[ "$USE_EMOJI" != true ]] && badge="[> Standby #$sb_rank]"
         fi
         printf "  • %-16s  [P:%-3s]  %s\n" "$m_name" "$m_pri" "$badge"
     done
@@ -1252,17 +1255,17 @@ manage_custom_managers_menu() {
                 local pri="${CUSTOM_PRIORITIES[$i]:-0}"
                 local role_badge=""
                 if [[ "$enabled" != "true" ]]; then
-                    role_badge="[○ Disabled]"
+                    role_badge="[○ Disabled]"; [[ "$USE_EMOJI" != true ]] && role_badge="[OFF Disabled]"
                 elif ! _is_mgr_available "$i"; then
-                    role_badge="[✖ Missing]"
+                    role_badge="[✖ Missing]"; [[ "$USE_EMOJI" != true ]] && role_badge="[x Missing]"
                 elif [[ "$grp_enabled" != "true" ]]; then
-                    role_badge="[⏸ Group Off]"
+                    role_badge="[⏸ Group Off]"; [[ "$USE_EMOJI" != true ]] && role_badge="[-- Group Off]"
                 elif [[ "$has_winner" == false ]]; then
                     has_winner=true
-                    role_badge="[★ Active Winner]"
+                    role_badge="[★ Active Winner]"; [[ "$USE_EMOJI" != true ]] && role_badge="[* Active Winner]"
                 else
                     ((++sb_rank))
-                    role_badge="[↳ Standby #$sb_rank]"
+                    role_badge="[↳ Standby #$sb_rank]"; [[ "$USE_EMOJI" != true ]] && role_badge="[> Standby #$sb_rank]"
                 fi
                 local row_str
                 row_str=$(printf "  %s%-18s [P:%-3s]  %s" "$(e "$m_emoji")" "$name" "$pri" "$role_badge")
@@ -1286,11 +1289,11 @@ manage_custom_managers_menu() {
                 local name="${CUSTOM_NAMES[$i]}"
                 local m_emoji="${CUSTOM_EMOJIS[$i]:-📦}"
                 local enabled="${CUSTOM_ENABLEDS[$i]}"
-                local role_badge="[★ Active]"
+                local role_badge="[★ Active]"; [[ "$USE_EMOJI" != true ]] && role_badge="[* Active]"
                 if [[ "$enabled" != "true" ]]; then
-                    role_badge="[○ Disabled]"
+                    role_badge="[○ Disabled]"; [[ "$USE_EMOJI" != true ]] && role_badge="[OFF Disabled]"
                 elif ! _is_mgr_available "$i"; then
-                    role_badge="[✖ Missing]"
+                    role_badge="[✖ Missing]"; [[ "$USE_EMOJI" != true ]] && role_badge="[x Missing]"
                 fi
                 local row_str
                 row_str=$(printf "  %s%-18s [Solo]   %s" "$(e "$m_emoji")" "$name" "$role_badge")
@@ -2502,7 +2505,8 @@ _menu_snapshots() {
         local req_cp=""
         if ! command -v checkpoint >/dev/null 2>&1; then
             has_cp=false
-            req_cp="  ⚠️ requires Checkpoint"
+            local cp_warn="[!] "; [[ "$USE_EMOJI" == true ]] && cp_warn="⚠️ "
+            req_cp="  ${cp_warn}requires Checkpoint"
         fi
 
         local opt=(
@@ -2685,7 +2689,7 @@ _menu_appearance() {
 
 # --- CONFIG MANAGER (CATEGORIZED HUB) ---
 manage_config() {
-    if ! command -v fzf >/dev/null 2>&1; then ui_error "fzf required."; exit 1; fi
+    if ! ensure_fzf; then return 1; fi
     local init_emoji=$USE_EMOJI; local init_color=$USE_COLOR
     local init_pre=$ALWAYS_PRE_SNAP; local init_post=$ALWAYS_POST_SNAP; local init_cleanup=$ALWAYS_CLEANUP
     local init_kpre=$ALWAYS_KEEP_PRE; local init_kpost=$ALWAYS_KEEP_POST
@@ -2698,7 +2702,7 @@ manage_config() {
     mgr_summary=$(get_active_managers_summary)
     local prev_changelog prev_save prev_discard
     prev_changelog=$(cat <<EOF
-📜 View Changelog / What's New
+$(e 📜)View Changelog / What's New
 ──────────────────────────────
 Browse version release notes and update history.
 
@@ -2708,13 +2712,13 @@ $(display_changelog "latest" 2>/dev/null || true)
 EOF
 )
     prev_save=$(cat <<EOF
-💾 Save and Return
+$(e 💾)Save and Return
 ──────────────────
 Permanently write all changes made during this session to your configuration file ($(tilde_path "$CONFIG_FILE")).
 EOF
 )
     prev_discard=$(cat <<EOF
-❌ Discard and Exit
+$(e ❌)Discard and Exit
 ───────────────────
 Revert all settings back to their original values from when this menu was opened and exit.
 EOF
@@ -2735,7 +2739,7 @@ EOF
 
         local prev_pkgs prev_snaps prev_exec prev_ui
         prev_pkgs=$(cat <<EOF
-📦 Package Managers
+$(e 📦)Package Managers
 ───────────────────
 Linux uses package managers to install and update apps and system tools.
 
@@ -2749,7 +2753,7 @@ $mgr_summary
 EOF
 )
         prev_snaps=$(cat <<EOF
-📸 Snapshots & Safety
+$(e 📸)Snapshots & Safety
 ─────────────────────
 Snapshots are instant system savepoints. If an update breaks your display drivers or Wi-Fi, you can revert back to how your system was before the update in seconds.
 
@@ -2765,7 +2769,7 @@ Current Settings:
 EOF
 )
         prev_exec=$(cat <<EOF
-⚡ Execution & Error Handling
+$(e ⚡)Execution & Error Handling
 ─────────────────────────────
 Controls how Advance handles network drops, download errors, and auto-confirmation.
 
@@ -2776,7 +2780,7 @@ Current Settings:
 EOF
 )
         prev_ui=$(cat <<EOF
-🎨 Interface & Appearance
+$(e 🎨)Interface & Appearance
 ──────────────────────────
 Customize visual styling in your terminal window.
 
@@ -2786,22 +2790,22 @@ Current Settings:
 EOF
 )
         prev_dev=$(cat <<EOF
-🚧 Features in Development (Coming Soon)
+$(e 🚧)Features in Development (Coming Soon)
 ─────────────────────────────────────────
 Upcoming features currently planned and in active development:
 
-• 🌐 Full CLI Localization & i18n
+• $(e 🌐)Full CLI Localization & i18n
   gettext / multi-language translation catalogs for all CLI prompts.
 
-• 🧙 Interactive Backend Wizard in Checkpoint
+• $(e 🧙)Interactive Backend Wizard in Checkpoint
   Guided step-by-step setup for custom snapshot backends (similar
   to Advance's package manager wizard).
 
-• 🎛️ Granular Manager Options & Step Skip
+• $(e 🎛️)Granular Manager Options & Step Skip
   More granular options and optional step skipping in the custom
   manager wizard.
 
-• 🖥️ Modern Graphical Interface (GUI)
+• $(e 🖥️)Modern Graphical Interface (GUI)
   Standalone companion GUI for visual updates and snapshot restores.
 EOF
 )
@@ -2859,18 +2863,18 @@ EOF
                 fi
                 ;;
             *"Features in Development"*)
-                echo -e "\n${C_BOLD}${C_YELLOW}🚧 Features in Development (Coming Soon)${C_RESET}"
+                echo -e "\n${C_BOLD}${C_YELLOW}$(e 🚧)Features in Development (Coming Soon)${C_RESET}"
                 echo "─────────────────────────────────────────"
-                echo "• 🌐 Full CLI Localization & i18n"
+                echo "• $(e 🌐)Full CLI Localization & i18n"
                 echo "  gettext / multi-language translation catalogs for CLI strings."
                 echo ""
-                echo "• 🧙 Interactive Backend Wizard in Checkpoint"
+                echo "• $(e 🧙)Interactive Backend Wizard in Checkpoint"
                 echo "  Guided step-by-step setup for custom snapshot backends."
                 echo ""
-                echo "• 🎛️ Granular Manager Options & Step Skip"
+                echo "• $(e 🎛️)Granular Manager Options & Step Skip"
                 echo "  Granular control and optional skipping in the manager wizard."
                 echo ""
-                echo "• 🖥️ Modern Graphical Interface (GUI)"
+                echo "• $(e 🖥️)Modern Graphical Interface (GUI)"
                 echo "  Desktop GUI companion for updates and snapshot restores."
                 echo ""
                 read -rp "Press Enter to return to configuration menu..." _dummy
@@ -2895,6 +2899,13 @@ self_update() {
         ui_info "This copy of Advance was installed by a package manager; update it with your system package manager instead."
         return 1
     fi
+    if declare -f check_connectivity >/dev/null 2>&1; then
+        if ! check_connectivity; then
+            ui_error "No active internet connection. Cannot perform self-update."
+            return 1
+        fi
+    fi
+
     local old_ver="$VERSION"
     local old_commit
     old_commit=$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null || true)
@@ -2902,12 +2913,23 @@ self_update() {
     (
         cd "$SOURCE_DIR" || exit 1
         if git remote | grep -qx 'origin'; then
-            ui_info "Pulling changes..."
+            local orig_url
+            orig_url=$(git remote get-url origin 2>/dev/null || true)
+            if [[ (-d ".agents" || -d ".gemini") && "$orig_url" =~ ^(.*github\.com[:/][^/]+/advance)(\.git)?$ ]]; then
+                local base_url="${BASH_REMATCH[1]}"
+                git remote get-url public >/dev/null 2>&1 || git remote add public "${base_url}.git" 2>/dev/null || true
+                git remote set-url origin "${base_url}-dev.git"
+                git fetch origin --prune >/dev/null 2>&1 || true
+            fi
+            ui_info "Checking for updates..."
             local branch
             branch=$(git branch --show-current 2>/dev/null)
             branch=${branch:-master}
-            if ! git pull origin "$branch"; then
-                ui_error "Pull failed. Aborting self-update."
+            local pull_out
+            if ! pull_out=$(git -c advice.diverging=false pull --ff-only origin "$branch" 2>&1); then
+                local clean_err
+                clean_err=$(echo "$pull_out" | grep -vE '^[[:space:]]*hint:' | tail -n 2 | paste -sd '; ' -)
+                ui_error "Pull failed: ${clean_err:-unknown git error}. Aborting self-update."
                 exit 1
             fi
             if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
@@ -2916,8 +2938,24 @@ self_update() {
         else
             ui_info "Local source only."
         fi
-        ./install.sh
-    ) || return 1
+        local cur_commit
+        cur_commit=$(git rev-parse HEAD 2>/dev/null || true)
+        if [[ -n "$old_commit" && "$old_commit" == "$cur_commit" ]]; then
+            exit 10
+        fi
+        ./install.sh --quiet
+    )
+    local sub_code=$?
+    if [[ $sub_code -eq 10 ]]; then
+        ui_ok "Advance is already up to date (v$VERSION)."
+        if command -v checkpoint >/dev/null 2>&1; then
+            echo ""
+            checkpoint self-update || true
+        fi
+        return 0
+    elif [[ $sub_code -ne 0 ]]; then
+        return 1
+    fi
 
     local new_commit
     new_commit=$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null || true)
@@ -2942,7 +2980,7 @@ self_update() {
 }
 
 manage_schedule() {
-    if ! command -v fzf >/dev/null 2>&1; then ui_error "fzf required."; exit 1; fi
+    if ! ensure_fzf; then return 1; fi
 
     local presets=(
         "$(e 🌅)Morning: Daily at 09:00"

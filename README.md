@@ -160,7 +160,8 @@ advance [OPTIONS] [SUBCOMMAND]
 | `-nef, --no-extra-flags <mgr>` | Clear configured extra flags for manager for this run (repeatable) |
 | `-ex, --exclude <pkg>` | Exclude package from updates for this run (repeatable) |
 | `-i, --interactive` | Force manual confirmation mode for all managers |
-| `--changelog [ver]` | View release notes or open interactive FZF version browser |
+| `-c, --changelog [ver]` | View release notes or open interactive FZF version browser |
+| `-U, --self-update, --selfupdate` | Pull latest git changes and reinstall the tool suite |
 | `-v, --verbose, --debug` | Enable detailed debug logging |
 | `-V, --version` | Print version and build number, then exit |
 | `-h, --help` | Display command usage and option summary |
@@ -200,19 +201,9 @@ advance config import <file|url>    # Import manager configs
 advance catalog                     # Official recipe catalog (list, scan, enroll, remove)
 advance catalog scan                # Auto-detect and enroll installed package managers
 advance schedule                    # Setup background auto-update timers
-advance self-update                 # Pull latest git changes and reinstall
+advance self-update                 # Pull latest git changes and reinstall (alias: selfupdate, -U)
+advance selfupdate                  # Pull latest git changes and reinstall
 ```
-
----
-
-## 🚧 Features in Development
-
-The following features and improvements are actively planned and under development:
-
-- 🌐 **Full CLI Localization (i18n):** GNU `gettext` multi-language translation catalogs for all CLI prompts and menu descriptions.
-- 🧙 **Interactive Checkpoint Backend Wizard:** Guided step-by-step walkthrough for configuring custom snapshot backends in Checkpoint.
-- 🎛️ **Granular Manager Wizard Customization:** Optional step skipping and fine-grained advanced configuration in Advance's custom manager wizard.
-- 🖥️ **Modern Companion GUI:** Desktop interface for visual update management, system health overview, and one-click snapshot rollback.
 
 ---
 
@@ -222,3 +213,5 @@ Full documentation is available via the manual:
 ```bash
 man advance
 ```
+
+For planned features and upcoming capabilities, see [ROADMAP.md](ROADMAP.md).

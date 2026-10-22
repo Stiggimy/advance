@@ -180,7 +180,7 @@ do_update() {
         elif [[ "$2" == "import" ]]; then config_import "$3"; return 0;
         else manage_config; return 0; fi
     fi
-    if [[ "$1" == "self-update" ]]; then ensure_menu_loaded; self_update; return $?; fi
+    if [[ "$1" == "self-update" || "$1" == "selfupdate" ]]; then ensure_menu_loaded; self_update; return $?; fi
     if [[ "$1" == "schedule" ]]; then ensure_menu_loaded; manage_schedule; return 0; fi
     if [[ -n "$DEFAULTS" ]]; then
         local -a _default_args=()
@@ -276,9 +276,13 @@ do_update() {
             -i|--interactive) is_interactive=true; shift ;;
             -v|--verbose|--debug) VERBOSE=true; shift ;;
             -V|--version) echo "Advance v$VERSION${BUILD:+ (build $BUILD)}"; exit 0 ;;
-            --changelog=*)
+            -U|--self-update|--selfupdate)
+                ensure_menu_loaded
+                self_update
+                exit $? ;;
+            -c=*|--changelog=*)
                 show_changelog "${1#*=}"; exit $? ;;
-            --changelog)
+            -c|--changelog)
                 if [[ "$2" =~ ^(--latest|--all|all|current|--current|-h|--help|-V|--version)$ || ( -n "$2" && "$2" != -* ) ]]; then
                     show_changelog "$2"; exit $?
                 else
@@ -319,23 +323,24 @@ do_update() {
                 echo -e " $(e 🙋)${C_PURP}-i,    --interactive${C_RESET}               Force manual confirmation mode for all managers."
                 echo ""
                 echo -e "${C_BOLD}General:${C_RESET}"
-                echo -e " $(e 📜)${C_PURP}       --changelog [ver]${C_RESET}          View release notes or open FZF browser."
-                echo -e " $(e ℹ️)${C_PURP}-V,    --version${C_RESET}                   Print version and exit."
-                echo -e " $(e 🔍)${C_PURP}-v,    --verbose, --debug${C_RESET}          Enable debug logs."
-                echo -e " $(e ❓)${C_PURP}-h,    --help${C_RESET}                      Display this help and exit."
+                echo -e "  $(e 🔄)${C_PURP}-U,   --self-update, --selfupdate${C_RESET} Update Advance and Checkpoint suite."
+                echo -e "  $(e 📜)${C_PURP}-c,   --changelog [ver]${C_RESET}     View release notes or open FZF browser."
+                echo -e "  $(e ℹ️)${C_PURP}-V,   --version${C_RESET}                  Print version and exit."
+                echo -e "  $(e 🔍)${C_PURP}-v,   --verbose, --debug${C_RESET}         Enable debug logs."
+                echo -e "  $(e ❓)${C_PURP}-h,   --help${C_RESET}                     Display this help and exit."
                 echo ""
                 echo -e "${C_BOLD}Subcommands:${C_RESET}"
-                echo -e " $(e ⚙️)${C_GREEN}config${C_RESET}                              Interactive settings menu."
-                echo -e "        ${C_GREEN}config export [mgr|--all]${C_RESET}       Export package manager configuration."
-                echo -e "        ${C_GREEN}config import \e[3m<file|url>\e[0m${C_RESET}        Import package manager configuration."
-                echo -e " $(e 📚)${C_GREEN}catalog${C_RESET}                             Official manager recipes catalog."
-                echo -e "        ${C_GREEN}catalog list${C_RESET}                    List catalog managers and enrollment status."
-                echo -e "        ${C_GREEN}catalog scan${C_RESET}                    Scan system and auto-enroll available tools."
-                echo -e "        ${C_GREEN}catalog enroll \e[3m<mgr>\e[0m${C_RESET}            Enroll a manager from the catalog."
-                echo -e "        ${C_GREEN}catalog remove \e[3m<mgr>\e[0m${C_RESET}            Remove an enrolled manager."
-                echo -e " $(e 📜)${C_GREEN}changelog [version]${C_RESET}                 View changelog or open interactive release notes browser."
-                echo -e " $(e 📅)${C_GREEN}schedule${C_RESET}                            Configure background auto-updates."
-                echo -e " $(e 🔄)${C_GREEN}self-update${C_RESET}                         Update the tool suite."
+                echo -e "  $(e ⚙️)${C_GREEN}config${C_RESET}                            Interactive settings menu."
+                echo -e "  $(e 📦)${C_GREEN}config export [mgr|--all]${C_RESET}         Export package manager configuration."
+                echo -e "  $(e 📥)${C_GREEN}config import \e[3m<file|url>\e[0m${C_RESET}          Import package manager configuration."
+                echo -e "  $(e 📚)${C_GREEN}catalog${C_RESET}                           Official manager recipes catalog."
+                echo -e "  $(e 📋)${C_GREEN}catalog list${C_RESET}                      List catalog managers and enrollment status."
+                echo -e "  $(e 🔍)${C_GREEN}catalog scan${C_RESET}                      Scan system and auto-enroll available tools."
+                echo -e "  $(e ➕)${C_GREEN}catalog enroll \e[3m<mgr>\e[0m${C_RESET}              Enroll a manager from the catalog."
+                echo -e "  $(e ➖)${C_GREEN}catalog remove \e[3m<mgr>\e[0m${C_RESET}              Remove an enrolled manager."
+                echo -e "  $(e 📜)${C_GREEN}changelog [version]${C_RESET}               View changelog or open interactive release notes browser."
+                echo -e "  $(e 📅)${C_GREEN}schedule${C_RESET}                          Configure background auto-updates."
+                echo -e "  $(e 🔄)${C_GREEN}self-update, selfupdate${C_RESET}           Update the tool suite."
                 echo ""
                 echo -e "${C_BOLD}Groups:${C_RESET}"
                 echo -e "  Managers are organized in directories under $(tilde_path "$CUSTOM_DIR")/."
@@ -445,13 +450,24 @@ do_update() {
     [[ "$VERBOSE" == true ]] && ui_debug "Verbose mode enabled. Version: $VERSION"
 
     if [[ "$check_only" == false && ("$do_pre" == true || "$do_post" == true) ]]; then
-        if ! command -v checkpoint >/dev/null 2>&1; then
+        local cp_ready=false
+        local cp_missing=true
+        if command -v checkpoint >/dev/null 2>&1; then
+            cp_missing=false
+            if checkpoint check >/dev/null 2>&1; then
+                cp_ready=true
+            fi
+        fi
+
+        if [[ "$cp_ready" == false ]]; then
+            local reason="Checkpoint is not installed"
+            [[ "$cp_missing" == false ]] && reason="No snapshot backend (Snapper/Timeshift) is configured in Checkpoint"
             if [[ "$SKIP_CHECKPOINT_WARNING" == true ]]; then
                 do_pre=false; do_post=false
-                ui_info "Snapshots disabled (Checkpoint not installed). Run 'advance config' to change."
+                ui_info "Snapshots disabled ($reason). Run 'advance config' to change."
             else
-                request_attention "Checkpoint not installed."
-                ui_warn "Checkpoint is not installed — snapshots are disabled."
+                request_attention "Snapshots unavailable."
+                ui_warn "$reason — snapshots are disabled."
                 echo -e "   Snapshots let you roll back if an update breaks your system.\n"
                 echo -e "  [${C_GREEN}Y${C_RESET}] Yes, proceed without snapshots (this time only)"
                 echo -e "  [${C_CYAN}D${C_RESET}] Don't ask again (always proceed without asking)"
@@ -472,7 +488,7 @@ do_update() {
                         ui_ok "Saved preference: will not ask again. Run 'advance config' to change." ;;
                     *)
                         close_attention
-                        ui_error "Update aborted. Install Checkpoint to enable snapshots or choose to proceed without."
+                        ui_error "Update aborted. Configure Checkpoint to enable snapshots or choose to proceed without."
                         exit 1 ;;
                 esac
             fi
@@ -629,7 +645,7 @@ do_update() {
             close_attention
         else
             if command -v notify-send >/dev/null 2>&1; then
-                notify-send -u critical -a "advance" -i dialog-warning "Advance Update Required" "Background update requires sudo authentication. Please run 'advance' manually in a terminal to apply updates."
+                notify-send -u critical -a "advance" -i dialog-warning "Advance Update Required" "Background update requires sudo authentication. Please run 'advance' manually in a terminal to apply updates." 2>/dev/null || true
             fi
             echo "ERROR: Background update requires sudo authentication. Run 'advance' manually." >&2
             exit 1
@@ -691,20 +707,43 @@ do_update() {
             [[ "$force_del" == true ]] && snap_cmd+=" -f"
         fi
         [[ "$VERBOSE" == true ]] && snap_cmd+=" -v"
-        if run_with_retry "Pre-Snapshot" "checkpoint" "$snap_cmd"; then
-            local c_status="" c_driver="" c_format="" c_id=""
-            while IFS='=' read -r pk pv || [[ -n "$pk" ]]; do
-                [[ -z "$pk" ]] && continue
-                pv="${pv%\"}"; pv="${pv#\"}"
-                case "$pk" in
-                    CHECKPOINT_STATUS) c_status="$pv" ;;
-                    CHECKPOINT_DRIVER) c_driver="$pv" ;;
-                    CHECKPOINT_FORMAT) c_format="$pv" ;;
-                    CHECKPOINT_ID) c_id="$pv" ;;
-                esac
-            done <<< "$LAST_CMD_OUTPUT"
+        local snap_out="" snap_code=0
+        snap_out=$(eval "$snap_cmd" 2>&1)
+        snap_code=$?
+        local c_status="" c_driver="" c_format="" c_id="" c_error=""
+        while IFS='=' read -r pk pv || [[ -n "$pk" ]]; do
+            [[ -z "$pk" ]] && continue
+            pv="${pv%\"}"; pv="${pv#\"}"
+            case "$pk" in
+                CHECKPOINT_STATUS) c_status="$pv" ;;
+                CHECKPOINT_DRIVER) c_driver="$pv" ;;
+                CHECKPOINT_FORMAT) c_format="$pv" ;;
+                CHECKPOINT_ID) c_id="$pv" ;;
+                CHECKPOINT_ERROR) c_error="$pv" ;;
+            esac
+        done <<< "$snap_out"
+
+        if [[ $snap_code -eq 0 && "$c_status" == "ok" ]]; then
             PRE_SNAPSHOT_ID="$c_id"
             ui_ok "Pre-snapshot created: ${c_id:-done} (${c_driver:-checkpoint})"
+        else
+            ui_warn "Pre-snapshot failed: ${c_error:-Snapshot creation failed.}"
+            if [[ -t 0 ]]; then
+                request_attention "Pre-snapshot failed."
+                echo -e "  [${C_YELLOW}S${C_RESET}] Skip snapshot and continue update"
+                echo -e "  [${C_RED}A${C_RESET}] Abort update\n"
+                echo -n -e "${C_BOLD}Choice [s/A]: ${C_RESET}"
+                read -r -n 1 snap_action
+                echo ""
+                close_attention
+                case "$snap_action" in
+                    [Ss]) ui_info "Proceeding with update without pre-snapshot." ;;
+                    *)    ui_error "Update aborted."; exit 1 ;;
+                esac
+            else
+                ui_error "Non-interactive environment: pre-snapshot failed. Aborting."
+                exit 1
+            fi
         fi
     fi
 

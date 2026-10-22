@@ -8,17 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.9.35] — 2026-10-22
 
 ### Added
+- **Self-Update Command Expansion (`selfupdate`, `-U`)**: Added `selfupdate` alongside `self-update`, along with `-U`, `--self-update`, and `--selfupdate` CLI flags for fast tool suite updates across option parsing, help text, man pages, and documentation.
+- **Changelog Short Flag (`-c`)**: Added `-c` short flag for `--changelog` across CLI option parsing, help text, and documentation for quick access to formatted release notes and the interactive FZF browser.
+- **Automatic `fzf` Dependency Installation**: Automatically installs `fzf` via active catalog package manager or official git release fallback during `install.sh` and upon launching interactive configuration or scheduling menus.
 - **XDG Base Directory Support**: Configuration, data, state, and cache paths now honor `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME` (as well as `ADVANCE_*_DIR` overrides) with automatic one-time migration from legacy paths (`lib/xdg.sh`).
 - **Arch Linux Packaging (`PKGBUILD`)**: Added VCS `PKGBUILD`, `.SRCINFO`, and `advance-git.install` for system-wide Arch Linux installation (`makepkg -si`).
 - **In-App Changelog Browser & Release Notes**: Added `advance changelog` subcommand, `--changelog` flag, interactive FZF release notes browser in `advance config`, and automatic "What's New" highlights after `advance self-update`.
 - **`NO_COLOR` Standard Support**: Automatically disables ANSI color sequences when the `NO_COLOR` environment variable is set.
 
 ### Changed
+- **Self-Update Output Streamlining**: Suppressed noisy Git advice hints and eliminated redundant full installer runs when the repository is already up to date.
 - **FZF Menu & Preview Performance**: Cached catalog drift checks per session, eliminated `sed`/`find`/`grep` subshell lookups during FZF cursor movement via hidden tab-delimited metadata columns, cached static previews in `advance config`, and replaced external process spawns in the catalog and changelog browsers with pure-bash/awk parsing.
 - **Catalog Tool Path & Check Fallbacks**: Updated `pnpm`, `pipx`, and `cargo` catalog recipes to respect tool-specific home variables (`PNPM_HOME`, `PIPX_HOME`, `CARGO_HOME`), and added `-Qu` fallback to `pacman`, `paru`, and `yay` when `checkupdates` is not installed.
 - **Packaged Install Guard**: `advance self-update` now detects system-wide package installations and advises updating via the system package manager.
 
 ### Fixed
+- **NPM Global Update Permissions**: The NPM catalog recipe now dynamically tests write permissions on the global node modules root (`npm root -g`) and seamlessly runs with `sudo` when root-owned, eliminating `EACCES` permission denied errors while preserving unprivileged execution for NVM and user prefix environments.
+- **Snapshot Backend Auto-Detection & Porcelain Isolation**: Advance now auto-detects whether Checkpoint has an operational snapshot backend configured prior to initiating pre-update snapshots, avoiding futile retries or spurious failure menus on systems without snapshot backends (such as WSL); captured machine-readable porcelain variables in memory to prevent raw IPC strings from leaking to the terminal; and silenced desktop notification errors when the DBus notification service is unavailable.
+- **Self-Update Fast-Forward & Remote Alignment**: Enforced `--ff-only` during `advance self-update` and added automatic remote alignment when migrating from single-remote checkouts.
 - **Safe `DEFAULTS` Argument Parsing**: Parsed `DEFAULTS` via `read -r -a` to avoid unquoted glob expansion and word-splitting edge cases.
 - **Atomic Configuration Writes**: `save_config` now writes to a temporary file and atomically renames it into place with sorted group keys.
 

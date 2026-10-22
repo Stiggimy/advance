@@ -25,7 +25,7 @@ request_attention() {
     fi
     echo -e "\e[1;31m>>> REQUIRED ACTION: $msg <<<\e[0m\n"
     command -v notify-send >/dev/null 2>&1 && \
-        NOTIFICATION_ID=$(notify-send -p "UPDATE REQUIRED" "$msg" -u critical -i dialog-warning -a "advance")
+        NOTIFICATION_ID=$(notify-send -p "UPDATE REQUIRED" "$msg" -u critical -i dialog-warning -a "advance" 2>/dev/null || true)
     echo -e "\a"
 }
 
@@ -44,7 +44,11 @@ run_with_retry() {
     local fallback_label="$7"
     local original_cmd="$cmd"
     local attempts=0 max_retries=$AUTO_RETRIES force_applied=false i tmp_log="" exit_code=0 action=""
+    local prev_pipefail=false
+    [[ -o pipefail ]] && prev_pipefail=true
     [[ "$INFINITE_RETRIES" == true ]] && max_retries=9999
+
+    trap '[[ -n "$tmp_log" && -f "$tmp_log" ]] && rm -f "$tmp_log"; close_attention' INT TERM RETURN
 
     while true; do
         ui_debug "Attempt $((attempts + 1)): $cmd"
@@ -54,7 +58,8 @@ run_with_retry() {
         exit_code=$?
         LAST_CMD_OUTPUT=$(<"$tmp_log")
         rm -f "$tmp_log"
-        set +o pipefail
+        tmp_log=""
+        [[ "$prev_pipefail" == false ]] && set +o pipefail
 
         [[ $exit_code -eq 0 ]] && return 0
 
@@ -97,9 +102,11 @@ run_with_retry() {
             request_attention "$phase failed after $attempts $retry_word."
         fi
 
-        local title=" ❌ $phase failed after $attempts $retry_word. "
+        local icon="[FAIL]"; [[ "$USE_EMOJI" == true ]] && icon="❌"
+        local title=" $icon $phase failed after $attempts $retry_word. "
         if [[ $exit_code -eq 130 ]]; then
-            title=" ⚠️ $phase was interrupted (Ctrl+C). "
+            icon="[WARN]"; [[ "$USE_EMOJI" == true ]] && icon="⚠️"
+            title=" $icon $phase was interrupted (Ctrl+C). "
         fi
         local cmd_line=" Command: $cmd "
         local width=${#cmd_line}
@@ -118,8 +125,9 @@ run_with_retry() {
         printf "${C_RED}│${C_RESET} %-${width}s ${C_RED}│${C_RESET}\n" "$cmd_line"
         echo -e "${C_RED}${box_bot}${C_RESET}\n"
 
-        if [[ -z "$no_interactive_flag" && -z "$interactive_flag" ]]; then
-            echo -e "${C_YELLOW}⚠️  Note: No auto-confirm flag is configured for this manager.${C_RESET}"
+        if [[ "$type" != "checkpoint" && "$phase" != *Snapshot* && -z "$no_interactive_flag" && -z "$interactive_flag" ]]; then
+            local note_icon="[!] "; [[ "$USE_EMOJI" == true ]] && note_icon="⚠️  "
+            echo -e "${C_YELLOW}${note_icon}Note: No auto-confirm flag is configured for this manager.${C_RESET}"
             echo -e "${C_YELLOW}    If it stalled or failed unexpectedly, manual interaction may have been required.${C_RESET}\n"
         fi
 
@@ -174,7 +182,7 @@ run_with_retry() {
         if [[ ! -t 0 ]]; then
             close_attention
             if command -v notify-send >/dev/null 2>&1; then
-                notify-send -u critical -a "advance" -i dialog-error "Advance Update Failed" "Update phase '$phase' failed in unattended mode."
+                notify-send -u critical -a "advance" -i dialog-error "Advance Update Failed" "Update phase '$phase' failed in unattended mode." 2>/dev/null || true
             fi
             ui_error "Non-interactive environment: $phase failed after $attempts retries. Aborting."
             return 1
