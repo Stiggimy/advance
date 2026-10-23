@@ -4,7 +4,7 @@
 # ==============================================================================
 
 VERSION="0.10.0"
-BUILD="95"
+BUILD="96"
 
 # Auto-detect source directory (handles symlinks seamlessly)
 detect_source_dir() {
