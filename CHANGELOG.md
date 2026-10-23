@@ -5,6 +5,11 @@ All notable changes to Advance will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] — 2026-10-23
+
+### Fixed
+- **CLI Help Menu Alignment**: Realigned general option columns in `advance -h` for uniform terminal presentation across short and long flags.
+
 ## [0.10.0] — 2026-10-23
 
 ### Added
@@ -12,9 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Interactive Self-Update Prompt**: Added interactive prompt (`[Y/n/a/d]`) when new updates are detected, with one-touch immediate update and transparent re-execution of the original command, version skipping, and automatic mode switching.
 - **Self-Update Preferences Hub**: Added dedicated `Self-Update Check` selector in `advance config` (under *Execution & Error Handling*) with live mode previews and real-time FZF selector.
 - **Self-Update Command Expansion (`selfupdate`, `-U`)**: Added `selfupdate` alongside `self-update`, along with `-U`, `--self-update`, and `--selfupdate` CLI flags for fast tool suite updates across option parsing, help text, man pages, and documentation.
-
-### Fixed
-- **CLI Help Menu Alignment**: Realigned general option columns in `advance -h` for uniform terminal presentation across short and long flags.
 
 ## [0.9.35] — 2026-10-23
 
