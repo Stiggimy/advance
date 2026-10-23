@@ -215,4 +215,4 @@ Full documentation is available via the manual:
 man advance
 ```
 
-For planned features and upcoming capabilities, see [ROADMAP.md](ROADMAP.md).
+For upcoming features in development and full release history, see [CHANGELOG.md](CHANGELOG.md) (or run `advance -c`).

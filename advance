@@ -3,8 +3,8 @@
 # advance: Universal System Update Manager
 # ==============================================================================
 
-VERSION="0.10.1"
-BUILD="97"
+VERSION="0.11.0"
+BUILD="106"
 
 # Auto-detect source directory (handles symlinks seamlessly)
 detect_source_dir() {

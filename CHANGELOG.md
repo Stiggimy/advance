@@ -5,6 +5,17 @@ All notable changes to Advance will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Planned
+- **Full CLI Localization (i18n)**: Multi-language translation catalogs (`gettext`) for CLI output, prompts, and interactive menus.
+- **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
+
+## [0.11.0] — 2026-10-23
+
+### Added
+- **Granular Custom Manager Wizard**: Added Quick Setup mode to jump straight to Review & Save with smart defaults, optional step skipping across setup phases, and interactive configuration of advanced engine settings (`PROBE_ACTIVE_CMD` service probe, `EXCLUDE_HOLD_CMD`/`EXCLUDE_UNHOLD_CMD` package holds, and `POST_UPDATE_MSG` post-update notifications) in both the creation wizard and manager edit submenus.
+
 ## [0.10.1] — 2026-10-23
 
 ### Fixed

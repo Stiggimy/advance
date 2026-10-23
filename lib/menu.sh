@@ -900,6 +900,129 @@ _edit_check_settings_menu() {
     done
 }
 
+# Interactive submenu for Advanced Manager Settings (Daemon probe, package hold/unhold, post-update messages)
+# Uses caller variables: name, probe_cmd, exclude_hold_cmd, exclude_unhold_cmd, post_update_msg, post_update_msg_id
+# If $1 == "live", persists changes immediately via _save_current_mgr & _refresh_found
+_edit_advanced_settings_menu() {
+    local mode="${1:-wizard}"
+    while true; do
+        local probe_disp="${probe_cmd:-(none)}"
+        local hold_disp="${exclude_hold_cmd:-(none)}"
+        local unhold_disp="${exclude_unhold_cmd:-(none)}"
+        local msg_disp="${post_update_msg:-(none)}"
+        local msg_id_disp="${post_update_msg_id:-(none)}"
+
+        local adv_menu=(
+            "$(e 🔌)Runtime Service / Daemon Probe  (Currently: $probe_disp)"
+            "$(e 🔒)Package Hold Command            (Currently: $hold_disp)"
+            "$(e 🔓)Package Unhold Command          (Currently: $unhold_disp)"
+            "$(e 📢)Post-Update Notification Msg    (Currently: $msg_disp)"
+            "$(e 🆔)Post-Update Message ID          (Currently: $msg_id_disp)"
+            "---"
+            "$(e 🔙)Back"
+        )
+
+        local a_pick
+        a_pick=$(printf "%s\n" "${adv_menu[@]}" | fzf --height 16 --reverse \
+            --header "--- Advanced Engine Settings: $name ---" \
+            --preview 'case "{}" in
+                *Runtime*Service*|*Daemon*Probe*)
+                    echo -e "🔌 Runtime Daemon / Service Probe (PROBE_ACTIVE_CMD)\n────────────────────────────────────────────────\nCommand executed by Advance before checking or scheduling updates to verify that a background service or daemon is running.\n\n• If exit code is 0, Advance proceeds with the manager.\n• If non-zero, Advance considers the manager inactive and skips it.\n• Examples:\n    systemctl is-active --quiet docker\n    pgrep -x snapd\n    docker info" ;;
+                *Package*Hold*Command*)
+                    echo -e "🔒 Package Hold Command (EXCLUDE_HOLD_CMD)\n──────────────────────────────────────────\nCommand template used to temporarily lock or hold packages from updates.\n\n• Package name is appended to the command.\n• Examples:\n    sudo apt-mark hold\n    pacman -D --asdeps" ;;
+                *Package*Unhold*Command*)
+                    echo -e "🔓 Package Unhold Command (EXCLUDE_UNHOLD_CMD)\n────────────────────────────────────────────\nCommand template used to release previously held packages.\n\n• Package name is appended to the command.\n• Examples:\n    sudo apt-mark unhold\n    pacman -D --asexplicit" ;;
+                *Post-Update*Notification*)
+                    echo -e "📢 Post-Update Notification Message (POST_UPDATE_MSG)\n────────────────────────────────────────────────────\nNotice displayed to the user after this package manager completes an update.\n\n• Useful to advise restarting a service, logging out, or rebooting.\n• Example: A new kernel or display driver was updated; reboot recommended." ;;
+                *Post-Update*Message*ID*)
+                    echo -e "🆔 Post-Update Message ID (POST_UPDATE_MSG_ID)\n─────────────────────────────────────────────\nUnique identifier for this post-update notification message to allow dismissing or tracking." ;;
+                *) echo "Select an advanced setting to configure." ;;
+            esac' --preview-window=right:55%:wrap)
+
+        [[ -z "$a_pick" || "$a_pick" == *Back* ]] && break
+
+        if [[ "$a_pick" == *"Runtime Service"* ]]; then
+            echo "Enter daemon / service check command (e.g. 'systemctl is-active --quiet docker', 'none' to clear):"
+            echo -n "Probe Command [current: ${probe_cmd:-(none)}]: "
+            local r_pr
+            read -r r_pr
+            r_pr=$(trim "$r_pr")
+            if [[ "$r_pr" == "none" || "$r_pr" == "-" || "$r_pr" == "clear" ]]; then
+                probe_cmd=""
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Service probe command cleared."
+            elif [[ -n "$r_pr" ]]; then
+                probe_cmd="$r_pr"
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Service probe command updated."
+            fi
+        elif [[ "$a_pick" == *"Package Hold Command"* ]]; then
+            echo "Enter package hold command (e.g. 'sudo apt-mark hold', 'none' to clear):"
+            echo -n "Hold Command [current: ${exclude_hold_cmd:-(none)}]: "
+            local r_hold
+            read -r r_hold
+            r_hold=$(trim "$r_hold")
+            if [[ "$r_hold" == "none" || "$r_hold" == "-" || "$r_hold" == "clear" ]]; then
+                exclude_hold_cmd=""
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Package hold command cleared."
+            elif [[ -n "$r_hold" ]]; then
+                exclude_hold_cmd="$r_hold"
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Package hold command updated."
+            fi
+        elif [[ "$a_pick" == *"Package Unhold Command"* ]]; then
+            echo "Enter package unhold command (e.g. 'sudo apt-mark unhold', 'none' to clear):"
+            echo -n "Unhold Command [current: ${exclude_unhold_cmd:-(none)}]: "
+            local r_unhold
+            read -r r_unhold
+            r_unhold=$(trim "$r_unhold")
+            if [[ "$r_unhold" == "none" || "$r_unhold" == "-" || "$r_unhold" == "clear" ]]; then
+                exclude_unhold_cmd=""
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Package unhold command cleared."
+            elif [[ -n "$r_unhold" ]]; then
+                exclude_unhold_cmd="$r_unhold"
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Package unhold command updated."
+            fi
+        elif [[ "$a_pick" == *"Post-Update Notification"* ]]; then
+            echo "Enter message displayed after updates run ('none' to clear):"
+            echo -n "Post-Update Message [current: ${post_update_msg:-(none)}]: "
+            local r_msg
+            read -r r_msg
+            r_msg=$(trim "$r_msg")
+            if [[ "$r_msg" == "none" || "$r_msg" == "-" || "$r_msg" == "clear" ]]; then
+                post_update_msg=""
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Post-update message cleared."
+            elif [[ -n "$r_msg" ]]; then
+                post_update_msg="$r_msg"
+                if [[ -z "$post_update_msg_id" ]]; then
+                    post_update_msg_id="${name,,}_reboot_notice"
+                fi
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Post-update message updated."
+            fi
+        elif [[ "$a_pick" == *"Post-Update Message ID"* ]]; then
+            echo "Enter message ID string (e.g. 'docker_restart_notice', 'none' to clear):"
+            echo -n "Message ID [current: ${post_update_msg_id:-(none)}]: "
+            local r_mid
+            read -r r_mid
+            r_mid=$(trim "$r_mid")
+            if [[ "$r_mid" == "none" || "$r_mid" == "-" || "$r_mid" == "clear" ]]; then
+                post_update_msg_id=""
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Post-update message ID cleared."
+            elif [[ -n "$r_mid" ]]; then
+                post_update_msg_id="$r_mid"
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Post-update message ID updated."
+            fi
+        fi
+    done
+}
+
 # --- PRIORITY & EXECUTION ORDER HELPERS ---
 
 _is_mgr_available() {
@@ -1570,93 +1693,135 @@ manage_custom_managers_menu() {
                 continue
             fi
 
-            # Step 3: Smart Binary Check (REQUIRES_CMD)
             local auto_bin
             auto_bin=$(_infer_required_binary "$update_cmd")
-            local requires_cmd=""
-            echo -e "\n${C_BOLD}Step 3: Smart Binary Check (REQUIRES_CMD)${C_RESET}"
-            echo "Advance checks for this binary in PATH before running to verify the tool is installed."
-            if [[ -n "$auto_bin" ]]; then
-                local path_status="not found in PATH"
-                if command -v "$auto_bin" >/dev/null 2>&1; then
-                    path_status="found in PATH"
-                fi
-                echo -e "Inferred binary: ${C_GREEN}${auto_bin}${C_RESET} (${path_status})"
-                echo -n "Enter required binary [press Enter for '$auto_bin', or enter 'none']: "
-                read -r requires_cmd
-                requires_cmd=$(trim "$requires_cmd")
-                if [[ -z "$requires_cmd" ]]; then
-                    requires_cmd="$auto_bin"
-                elif [[ "$requires_cmd" == "none" || "$requires_cmd" == "-" || "$requires_cmd" == "clear" ]]; then
-                    requires_cmd=""
-                fi
-            else
-                echo -n "Enter required binary (command in PATH, leave empty for none): "
-                read -r requires_cmd
-                requires_cmd=$(trim "$requires_cmd")
-            fi
+            local requires_cmd="$auto_bin"
+            local target_group=""
+            local priority="0"
+            local check_cmd="" check_exit_code="" check_filter=""
+            local flags_auto_confirm="" flags_interactive="" auto_confirm=""
+            local skip_wizard=false
 
-            # Step 4: Group & Category Selection
-            local grp_opts=()
-            for g in "${groups[@]}"; do
-                [[ -n "$g" ]] && grp_opts+=("$g")
-            done
-            grp_opts+=("(standalone — runs independently alongside all other managers)")
-            grp_opts+=("(new group — create a new mutually-exclusive category)")
-
-            echo -e "\n${C_BOLD}Step 4: Group & Category Selection${C_RESET}"
-            echo "Choose whether '$name' runs independently or belongs to a mutually-exclusive group."
-
-            local grp_choice
-            grp_choice=$(printf "%s\n" "${grp_opts[@]}" | fzf --height 14 --reverse \
-                --header "Select Group / Category for '$name'" \
+            local wiz_modes=(
+                "$(e 🧙)Guided Walkthrough            — Configure binary check, category, check updates, and flags step-by-step"
+                "$(e ⚡)Quick Setup (Skip to Review)    — Use smart defaults & jump straight to Review & Save"
+            )
+            local w_choice
+            w_choice=$(printf "%s\n" "${wiz_modes[@]}" | fzf --height 8 --reverse \
+                --header "Select Setup Mode for '$name'" \
                 --preview 'case "{}" in
-                    "(standalone"*)
-                        echo -e "Standalone Manager\n──────────────────\n• Runs independently alongside all other managers.\n• No mutual exclusion: Advance executes every enabled standalone manager during system update.\n• Recommended for standalone tools (e.g. Flatpak, Snap, Homebrew, pipx)." ;;
-                    "(new group"*)
-                        echo -e "Create New Category / Group\n───────────────────────────\n• Creates a new mutually-exclusive category.\n• Advance executes only the single highest-priority enabled manager in this group.\n• Use when you have multiple alternatives for the same role (e.g. pacman vs yay vs paru)." ;;
-                    *)
-                        echo -e "Existing Group: {}\n──────────────────\n• Belongs to the '\''{}'\'' mutually-exclusive category.\n• Advance executes only the single highest-priority manager in this group.\n• If this manager has higher priority than existing members, it will run instead of them." ;;
+                    *Guided*)
+                        echo -e "Guided Walkthrough\n──────────────────\nStep-by-step interactive setup:\n• Step 3: Required binary check\n• Step 4: Category / priority group\n• Step 5: Check updates mode & command\n• Step 6: Confirmation handling & flags" ;;
+                    *Quick*)
+                        echo -e "Quick Setup with Smart Defaults\n────────────────────────────────\nSkips directly to the Review & Save screen using:\n• Inferred Binary: ${auto_bin:-(none)}\n• Category: standalone (runs alongside all other managers)\n• Check Updates: Always Run\n• Confirmation: Follow Global Settings\n\nYou can still customize or add advanced settings (probe, hold/unhold, flags) in Review & Save before saving." ;;
                 esac' --preview-window=right:55%:wrap)
 
-            [[ -z "$grp_choice" ]] && { ui_info "Wizard cancelled."; continue; }
+            [[ -z "$w_choice" ]] && { ui_info "Wizard cancelled."; continue; }
 
-            local target_group=""
-            if [[ "$grp_choice" == "(new group"* ]]; then
-                echo -n "Enter new group name (e.g. rust, system, python): "
-                read -r target_group
-                target_group=$(trim "$target_group")
-                [[ -z "$target_group" ]] && { ui_info "Wizard cancelled."; continue; }
-                target_group="${target_group//[\/\\\:]/}"
-                target_group=$(echo "$target_group" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')
-                [[ -z "$target_group" ]] && { ui_info "Wizard cancelled."; continue; }
-            elif [[ "$grp_choice" != "(standalone"* ]]; then
-                target_group="$grp_choice"
+            if [[ "$w_choice" == *"Quick Setup"* ]]; then
+                skip_wizard=true
             fi
 
-            # Step 5: Check Updates Mode (Optional)
-            echo -e "\n${C_BOLD}Step 5: Check Updates Mode${C_RESET}"
-            echo "Choose how Advance detects whether '$name' has updates available before running."
-            local check_cmd="" check_exit_code="" check_filter=""
-            if ! _select_check_mode "" "" ""; then
-                ui_info "Wizard cancelled."
-                continue
+            if [[ "$skip_wizard" == false ]]; then
+                # Step 3: Smart Binary Check (REQUIRES_CMD)
+                echo -e "\n${C_BOLD}Step 3: Smart Binary Check (REQUIRES_CMD)${C_RESET}"
+                echo "Advance checks for this binary in PATH before running to verify the tool is installed."
+                if [[ -n "$auto_bin" ]]; then
+                    local path_status="not found in PATH"
+                    if command -v "$auto_bin" >/dev/null 2>&1; then
+                        path_status="found in PATH"
+                    fi
+                    echo -e "Inferred binary: ${C_GREEN}${auto_bin}${C_RESET} (${path_status})"
+                    echo -n "Enter required binary [Enter for '$auto_bin', 'none' to clear, 'skip' to skip to Review]: "
+                    read -r requires_cmd
+                    requires_cmd=$(trim "$requires_cmd")
+                    if [[ -z "$requires_cmd" ]]; then
+                        requires_cmd="$auto_bin"
+                    elif [[ "$requires_cmd" == "none" || "$requires_cmd" == "-" || "$requires_cmd" == "clear" ]]; then
+                        requires_cmd=""
+                    elif [[ "$requires_cmd" == "skip" || "$requires_cmd" == "s" ]]; then
+                        requires_cmd="$auto_bin"
+                        skip_wizard=true
+                    fi
+                else
+                    echo -n "Enter required binary (command in PATH, leave empty for none, 'skip' to skip to Review): "
+                    read -r requires_cmd
+                    requires_cmd=$(trim "$requires_cmd")
+                    if [[ "$requires_cmd" == "skip" || "$requires_cmd" == "s" ]]; then
+                        requires_cmd=""
+                        skip_wizard=true
+                    fi
+                fi
             fi
-            check_cmd="$SEL_CHECK_CMD"
-            check_exit_code="$SEL_CHECK_EXIT_CODE"
-            check_filter="$SEL_CHECK_FILTER"
 
-            # Step 6: Confirmation Mode Preset
-            echo -e "\n${C_BOLD}Step 6: Confirmation Mode Preset${C_RESET}"
-            echo "Choose how '$name' handles confirmation prompts during automatic vs manual runs."
-            local flags_auto_confirm="" flags_interactive="" auto_confirm=""
-            if ! _select_confirm_mode "" ""; then
-                ui_info "Wizard cancelled."
-                continue
+            if [[ "$skip_wizard" == false ]]; then
+                # Step 4: Group & Category Selection
+                local grp_opts=()
+                for g in "${groups[@]}"; do
+                    [[ -n "$g" ]] && grp_opts+=("$g")
+                done
+                grp_opts+=("(standalone — runs independently alongside all other managers)")
+                grp_opts+=("(new group — create a new mutually-exclusive category)")
+                grp_opts+=("$(e ⏭️)(skip — standalone & jump straight to Review & Save)")
+
+                echo -e "\n${C_BOLD}Step 4: Group & Category Selection${C_RESET}"
+                echo "Choose whether '$name' runs independently or belongs to a mutually-exclusive group."
+
+                local grp_choice
+                grp_choice=$(printf "%s\n" "${grp_opts[@]}" | fzf --height 14 --reverse \
+                    --header "Select Group / Category for '$name'" \
+                    --preview 'case "{}" in
+                        *skip*)
+                            echo -e "Skip to Review\n──────────────\nKeeps '$name' as standalone and skips remaining steps directly to Review & Save." ;;
+                        "(standalone"*)
+                            echo -e "Standalone Manager\n──────────────────\n• Runs independently alongside all other managers.\n• No mutual exclusion: Advance executes every enabled standalone manager during system update.\n• Recommended for standalone tools (e.g. Flatpak, Snap, Homebrew, pipx)." ;;
+                        "(new group"*)
+                            echo -e "Create New Category / Group\n───────────────────────────\n• Creates a new mutually-exclusive category.\n• Advance executes only the single highest-priority enabled manager in this group.\n• Use when you have multiple alternatives for the same role (e.g. pacman vs yay vs paru)." ;;
+                        *)
+                            echo -e "Existing Group: {}\n──────────────────\n• Belongs to the '\''{}'\'' mutually-exclusive category.\n• Advance executes only the single highest-priority manager in this group.\n• If this manager has higher priority than existing members, it will run instead of them." ;;
+                    esac' --preview-window=right:55%:wrap)
+
+                [[ -z "$grp_choice" ]] && { ui_info "Wizard cancelled."; continue; }
+
+                if [[ "$grp_choice" == *skip* ]]; then
+                    target_group=""
+                    skip_wizard=true
+                elif [[ "$grp_choice" == "(new group"* ]]; then
+                    echo -n "Enter new group name (e.g. rust, system, python): "
+                    read -r target_group
+                    target_group=$(trim "$target_group")
+                    [[ -z "$target_group" ]] && { ui_info "Wizard cancelled."; continue; }
+                    target_group="${target_group//[\/\\\:]/}"
+                    target_group=$(echo "$target_group" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')
+                    [[ -z "$target_group" ]] && { ui_info "Wizard cancelled."; continue; }
+                elif [[ "$grp_choice" != "(standalone"* ]]; then
+                    target_group="$grp_choice"
+                fi
             fi
-            flags_auto_confirm="$SEL_AUTO_CONFIRM"
-            flags_interactive="$SEL_INTERACTIVE"
-            auto_confirm="$SEL_AUTO_CONFIRM_MODE"
+
+            if [[ "$skip_wizard" == false ]]; then
+                # Step 5: Check Updates Mode (Optional)
+                echo -e "\n${C_BOLD}Step 5: Check Updates Mode${C_RESET}"
+                echo "Choose how Advance detects whether '$name' has updates available before running."
+                if ! _select_check_mode "" "" ""; then
+                    ui_info "Wizard cancelled."
+                    continue
+                fi
+                check_cmd="$SEL_CHECK_CMD"
+                check_exit_code="$SEL_CHECK_EXIT_CODE"
+                check_filter="$SEL_CHECK_FILTER"
+
+                # Step 6: Confirmation Mode Preset
+                echo -e "\n${C_BOLD}Step 6: Confirmation Mode Preset${C_RESET}"
+                echo "Choose how '$name' handles confirmation prompts during automatic vs manual runs."
+                if ! _select_confirm_mode "" ""; then
+                    ui_info "Wizard cancelled."
+                    continue
+                fi
+                flags_auto_confirm="$SEL_AUTO_CONFIRM"
+                flags_interactive="$SEL_INTERACTIVE"
+                auto_confirm="$SEL_AUTO_CONFIRM_MODE"
+            fi
 
             # Review & Save with Live Preview
             local emoji="📦"
@@ -1698,6 +1863,7 @@ manage_custom_managers_menu() {
                     "$(e 🌈)Color Flag:               ${color_flag:-(none)}"
                     "$(e 💥)File Conflict Override:   ${flags_override:-(none)}"
                     "$(e 🚫)Package Exclude Flag:     ${exclude_flag:-(none)} [join: ${exclude_join:-,}]"
+                    "$(e ⚙️)Advanced Engine Settings... (Probe, Hold/Unhold, Post-Msg)"
                     "---"
                     "$(e ❌)Cancel"
                 )
@@ -1708,6 +1874,7 @@ manage_custom_managers_menu() {
 
   Status:        Enabled
   Required Cmd:  ${requires_cmd:-(none)}
+  Probe Cmd:     ${probe_cmd:-(none)}
   Group:         ${target_group:-(standalone)}
   Priority:      $priority
 
@@ -1717,6 +1884,7 @@ manage_custom_managers_menu() {
   Exit Code:     ${check_exit_code:-(standard)}
   Noise Filter:  ${check_filter:-(none)}
   Fallback Cmd:  ${check_timeout_fb:-(none)}
+  Dep Binary:    ${check_dep_bin:-(none)}
 
 ── Confirmation & Flags ──
   Confirm Mode:  $cf_summary
@@ -1726,13 +1894,16 @@ manage_custom_managers_menu() {
   Color Flag:    ${color_flag:-(none)}
   Extra Flags:   ${extra_flags:-(none)}
 
-── Exclusions ──
+── Exclusions & Engine ──
   Exclude Flag:  ${exclude_flag:-(none)}
   Join Mode:     ${exclude_join:-,}
+  Hold Cmd:      ${exclude_hold_cmd:-(none)}
+  Unhold Cmd:    ${exclude_unhold_cmd:-(none)}
+  Post-Msg:      ${post_update_msg:-(none)}
 PREV_EOF
 )
                 local rev_choice
-                rev_choice=$(export MGR_PREV="$preview_text"; printf "%s\n" "${rev_opts[@]}" | fzf --height 18 --reverse \
+                rev_choice=$(export MGR_PREV="$preview_text"; printf "%s\n" "${rev_opts[@]}" | fzf --height 20 --reverse \
                     --header "=== Review & Save Manager: $name ===" \
                     --preview 'printf "%s\n" "$MGR_PREV"' --preview-window=right:55%:wrap)
 
@@ -1766,6 +1937,8 @@ PREV_EOF
                     unset MGR_PREV
                     target_meta="mgr:$name"
                     break
+                elif [[ "$rev_choice" == *"Advanced Engine Settings"* ]]; then
+                    _edit_advanced_settings_menu "wizard"
                 elif [[ "$rev_choice" == *"Required Binary"* ]]; then
                     echo -n "Enter required binary (command in PATH, 'none' to clear) [current: ${requires_cmd:-(none)}]: "
                     read -r r_val
@@ -2020,6 +2193,7 @@ PREV_EOF
                 "$(e 🔎)Configure Check Updates (Currently: ${check_cmd:-(Always Runs)})"
                 "$(e 🚀)Set Update Command"
                 "$(e 🚩)Set Flags & Extras"
+                "$(e ⚙️)Advanced Engine Settings (Daemon Probe, Hold/Unhold, Post-Msg)"
                 "$(e 🏷️)Rename Manager"
                 "$(e 🗑️)Delete Manager"
                 "---"
@@ -2052,11 +2226,12 @@ PREV_EOF
   Override:      ${flags_override:-(none)}
   Color:         ${color_flag:-(none)}
 
-── Exclusions ──
+── Exclusions & Engine ──
   Flag:          ${exclude_flag:-(none)}
   Join:          ${exclude_join:-(none)}
   Hold Cmd:      ${exclude_hold_cmd:-(none)}
   Unhold Cmd:    ${exclude_unhold_cmd:-(none)}
+  Post-Msg:      ${post_update_msg:-(none)}
 SUB_PREV_EOF
 )
             local sub_choice
@@ -2369,6 +2544,9 @@ SUB_PREV_EOF
                         fi
                     fi
                 done
+
+            elif [[ "$sub_choice" == *"Advanced Engine Settings"* ]]; then
+                _edit_advanced_settings_menu "live"
 
             elif [[ "$sub_choice" == *"Rename Manager"* ]]; then
                 while true; do
@@ -2722,7 +2900,7 @@ manage_config() {
     local last_idx=0
     local mgr_summary
     mgr_summary=$(get_active_managers_summary)
-    local prev_changelog prev_save prev_discard
+    local prev_changelog prev_dev prev_save prev_discard
     prev_changelog=$(cat <<EOF
 $(e 📜)View Changelog / What's New
 ──────────────────────────────
@@ -2731,6 +2909,14 @@ Browse version release notes and update history.
 Select this item to open the interactive version browser.
 
 $(display_changelog "latest" 2>/dev/null || true)
+EOF
+)
+    prev_dev=$(cat <<EOF
+$(e 🚧)Features in Development (Upcoming)
+──────────────────────────────────────
+Upcoming user-facing features planned for future releases.
+
+$(display_changelog "Unreleased" 2>/dev/null || true)
 EOF
 )
     prev_save=$(cat <<EOF
@@ -2812,26 +2998,6 @@ Current Settings:
 • Syntax Colors:      $USE_COLOR
 EOF
 )
-        prev_dev=$(cat <<EOF
-$(e 🚧)Features in Development (Coming Soon)
-─────────────────────────────────────────
-Upcoming features currently planned and in active development:
-
-• $(e 🌐)Full CLI Localization & i18n
-  gettext / multi-language translation catalogs for all CLI prompts.
-
-• $(e 🧙)Interactive Backend Wizard in Checkpoint
-  Guided step-by-step setup for custom snapshot backends (similar
-  to Advance's package manager wizard).
-
-• $(e 🎛️)Granular Manager Options & Step Skip
-  More granular options and optional step skipping in the custom
-  manager wizard.
-
-• $(e 🖥️)Modern Graphical Interface (GUI)
-  Standalone companion GUI for visual updates and snapshot restores.
-EOF
-)
 
         local bind_args=()
         [[ $last_idx -gt 0 ]] && bind_args=(--bind "start:pos($((last_idx + 1)))")
@@ -2886,19 +3052,8 @@ EOF
                 fi
                 ;;
             *"Features in Development"*)
-                echo -e "\n${C_BOLD}${C_YELLOW}$(e 🚧)Features in Development (Coming Soon)${C_RESET}"
-                echo "─────────────────────────────────────────"
-                echo "• $(e 🌐)Full CLI Localization & i18n"
-                echo "  gettext / multi-language translation catalogs for CLI strings."
                 echo ""
-                echo "• $(e 🧙)Interactive Backend Wizard in Checkpoint"
-                echo "  Guided step-by-step setup for custom snapshot backends."
-                echo ""
-                echo "• $(e 🎛️)Granular Manager Options & Step Skip"
-                echo "  Granular control and optional skipping in the manager wizard."
-                echo ""
-                echo "• $(e 🖥️)Modern Graphical Interface (GUI)"
-                echo "  Desktop GUI companion for updates and snapshot restores."
+                display_changelog "Unreleased"
                 echo ""
                 read -rp "Press Enter to return to configuration menu..." _dummy
                 ;;
