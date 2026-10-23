@@ -40,6 +40,78 @@ e() {
     [[ "$USE_EMOJI" == true ]] && echo -n "$1 "
 }
 
+# --- Dynamic CLI Help Layout Formatter ---
+# Dynamically formats and wraps CLI help entries into uniform columns
+print_help_entry() {
+    local emoji="$1"
+    local color="$2"
+    local opt_str="$3"
+    local desc="$4"
+    local col_width="${5:-34}"
+
+    local prefix="  "
+    if [[ "$USE_EMOJI" == true && -n "$emoji" ]]; then
+        prefix="  $emoji "
+    fi
+
+    # Strip ANSI escape codes to calculate visible option string length
+    local clean_opt
+    clean_opt=$(printf '%b' "$opt_str" | sed 's/\x1b\[[0-9;]*m//g')
+    local opt_len=${#clean_opt}
+
+    local pad=2
+    if [[ $opt_len -lt $col_width ]]; then
+        pad=$((col_width - opt_len))
+    fi
+    local padding
+    padding=$(printf '%*s' "$pad" "")
+
+    # Calculate terminal wrap width for description
+    local term_cols="${COLUMNS:-}"
+    [[ -z "$term_cols" ]] && term_cols=$(tput cols 2>/dev/null || echo 80)
+    [[ ! "$term_cols" =~ ^[0-9]+$ || $term_cols -lt 40 ]] && term_cols=80
+
+    local pfx_len=2
+    [[ "$USE_EMOJI" == true && -n "$emoji" ]] && pfx_len=5
+    local desc_start=$((pfx_len + opt_len + pad))
+
+    if [[ $opt_len -ge $col_width ]]; then
+        echo -e "${prefix}${color}${opt_str}${C_RESET}"
+        local wrap_indent=$((pfx_len + col_width))
+        local ind_spaces
+        ind_spaces=$(printf '%*s' "$wrap_indent" "")
+        local avail_w=$((term_cols - wrap_indent))
+        if command -v fold >/dev/null 2>&1 && [[ $avail_w -gt 20 && ${#desc} -gt $avail_w ]]; then
+            local wrapped
+            wrapped=$(echo "$desc" | fold -s -w "$avail_w")
+            while IFS= read -r line; do
+                echo -e "${ind_spaces}${line}"
+            done <<< "$wrapped"
+        else
+            echo -e "${ind_spaces}${desc}"
+        fi
+    else
+        local avail_w=$((term_cols - desc_start))
+        if command -v fold >/dev/null 2>&1 && [[ $avail_w -gt 20 && ${#desc} -gt $avail_w ]]; then
+            local wrapped
+            wrapped=$(echo "$desc" | fold -s -w "$avail_w")
+            local first=true
+            local ind_spaces
+            ind_spaces=$(printf '%*s' "$desc_start" "")
+            while IFS= read -r line; do
+                if [[ "$first" == true ]]; then
+                    echo -e "${prefix}${color}${opt_str}${C_RESET}${padding}${line}"
+                    first=false
+                else
+                    echo -e "${ind_spaces}${line}"
+                fi
+            done <<< "$wrapped"
+        else
+            echo -e "${prefix}${color}${opt_str}${C_RESET}${padding}${desc}"
+        fi
+    fi
+}
+
 # --- Duration Parser ---
 # Converts human-readable time strings (e.g. 10m, 2h, 1d, 30s) to seconds
 parse_duration() {

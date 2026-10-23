@@ -23,9 +23,10 @@ Advance is a modern, modular, distro-agnostic update orchestrator for Linux. It 
     - `[S] Skip` / `[A] Abort`
 - 🚫 **Unified Package Exclusions:** Exclude problematic packages on the fly (`-ex <pkg>`), via config (`EXCLUDE_PACKAGES`), or via `$XDG_CONFIG_HOME/advance/excludes`. Automatically mapped to manager-native exclusion flags.
 - 📁 **XDG-Aware:** Configuration, data, cache, and state follow the XDG Base Directory specification.
+- 🧙 **Granular Custom Manager Wizard:** Guided step-by-step walkthrough (`advance config`) or Quick Setup with smart defaults, auto-inferred binaries (`_infer_required_binary`), and advanced engine settings (`PROBE_ACTIVE_CMD`, `EXCLUDE_HOLD_CMD`, `POST_UPDATE_MSG`).
 - 🔄 **Smart Self-Update Detector:** Asynchronous background check against upstream tracking branch with 6-hour caching, interactive `[Y/n/a/d]` prompt, notification banner, or auto-update mode (`advance config`).
 - 🌐 **Pre-flight Connectivity Check:** Verifies network before checking or applying updates to prevent hung scripts.
-- ⚙️ **FZF Menus & Scheduling:** Rich interactive configuration hub (`advance config`) with a guided custom package manager wizard, non-destructive flag tuning, and systemd auto-update scheduler (`advance schedule`).
+- ⚙️ **FZF Menus & Scheduling:** Rich interactive configuration hub (`advance config`) with priority reordering (`Alt+Up`/`Alt+Down`), non-destructive flag tuning, and systemd auto-update scheduler (`advance schedule`).
 
 ---
 
@@ -53,13 +54,14 @@ Groups execute in order of their group priority (configured in `$XDG_CONFIG_HOME
 
 ### Plugin Format
 
-Each `.conf` file defines manager behavior:
+Each `.conf` file defines declarative manager behavior:
 
 ```ini
 NAME=Yay
 EMOJI=🖥️
-REQUIRES_CMD=yay          # Binary required for manager to be considered available
-PRIORITY=10               # Higher value wins within group (must be unique per group)
+REQUIRES_CMD=yay             # Binary required for manager to be considered available
+PROBE_ACTIVE_CMD=            # Optional custom service/status probe command
+PRIORITY=10                  # Higher value wins within group (must be unique per group)
 CHECK_CMD=checkupdates 2>/dev/null; yay -Qua 2>/dev/null
 UPDATE_CMD=yay -Syu
 FLAGS=--needed
@@ -70,6 +72,9 @@ FLAGS_OVERRIDE=--overwrite '*'
 COLOR_FLAG=--color=always
 EXCLUDE_FLAG=--ignore
 EXCLUDE_JOIN=,
+EXCLUDE_HOLD_CMD=            # Optional command to hold excluded packages before update
+EXCLUDE_UNHOLD_CMD=          # Optional command to release held packages after update
+POST_UPDATE_MSG=             # Optional notice shown to user after updating this manager
 ENABLED=true
 ```
 
@@ -216,3 +221,9 @@ man advance
 ```
 
 For upcoming features in development and full release history, see [CHANGELOG.md](CHANGELOG.md) (or run `advance -c`).
+
+---
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 (GPLv3) — see the [LICENSE](LICENSE) file for details.

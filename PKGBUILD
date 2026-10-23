@@ -9,7 +9,7 @@ pkgrel=1
 pkgdesc="Universal modular system update manager with priority groups and snapshot support (git)"
 arch=('any')
 url="https://github.com/Stiggimy/advance"
-license=('unknown')
+license=('GPL-3.0-or-later')
 depends=('bash' 'coreutils' 'findutils' 'gawk' 'grep' 'sed' 'iproute2' 'sudo')
 makedepends=('git')
 optdepends=(
@@ -47,4 +47,5 @@ package() {
 
     install -Dm644 "$pkgname/README.md" "$pkgdir/usr/share/doc/advance/README.md"
     install -Dm644 "$pkgname/CHANGELOG.md" "$pkgdir/usr/share/doc/advance/CHANGELOG.md"
+    install -Dm644 "$pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
