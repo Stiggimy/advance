@@ -719,7 +719,7 @@ EOF
     # Execute Pre-Snapshot
     if [[ "$do_pre" == true && ("$any" == true || "$force_pre" == true || "$only_pre" == true) ]]; then
         ui_info "[Phase: Pre-Update Snapshot]"
-        local snap_cmd="checkpoint create --type pre --porcelain -m \"Before $dt update\""
+        local snap_cmd="checkpoint create --type pre -m \"Before $dt update\""
         [[ "$keep_pre" == true ]] && snap_cmd+=" -ks"
         if [[ "$do_post" == true && "$do_clean" == true ]]; then
             snap_cmd+=" -nc"
@@ -730,43 +730,18 @@ EOF
             [[ "$force_del" == true ]] && snap_cmd+=" -f"
         fi
         [[ "$VERBOSE" == true ]] && snap_cmd+=" -v"
-        local snap_out="" snap_code=0
-        snap_out=$(eval "$snap_cmd" 2>&1)
-        snap_code=$?
-        local c_status="" c_driver="" c_format="" c_id="" c_error=""
-        while IFS='=' read -r pk pv || [[ -n "$pk" ]]; do
-            [[ -z "$pk" ]] && continue
-            pv="${pv%\"}"; pv="${pv#\"}"
-            case "$pk" in
-                CHECKPOINT_STATUS) c_status="$pv" ;;
-                CHECKPOINT_DRIVER) c_driver="$pv" ;;
-                CHECKPOINT_FORMAT) c_format="$pv" ;;
-                CHECKPOINT_ID) c_id="$pv" ;;
-                CHECKPOINT_ERROR) c_error="$pv" ;;
-            esac
-        done <<< "$snap_out"
-
-        if [[ $snap_code -eq 0 && "$c_status" == "ok" ]]; then
-            PRE_SNAPSHOT_ID="$c_id"
-            ui_ok "Pre-snapshot created: ${c_id:-done} (${c_driver:-checkpoint})"
+        if run_with_retry "Pre-Snapshot" "checkpoint" "$snap_cmd"; then
+            local clean_last
+            clean_last=$(echo "$LAST_CMD_OUTPUT" | sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g')
+            PRE_SNAPSHOT_ID=$(echo "$clean_last" | sed -n 's/.*Snapshot created: *\([^ ]*\).*/\1/p' | tail -n 1)
+            if [[ -z "$PRE_SNAPSHOT_ID" || "$PRE_SNAPSHOT_ID" == "done" ]]; then
+                PRE_SNAPSHOT_ID=$(checkpoint -l --porcelain 2>/dev/null | head -n 1 | awk '{print $1}')
+            fi
         else
-            ui_warn "Pre-snapshot failed: ${c_error:-Snapshot creation failed.}"
-            if [[ -t 0 ]]; then
-                request_attention "Pre-snapshot failed."
-                echo -e "  [${C_YELLOW}S${C_RESET}] Skip snapshot and continue update"
-                echo -e "  [${C_RED}A${C_RESET}] Abort update\n"
-                echo -n -e "${C_BOLD}Choice [s/A]: ${C_RESET}"
-                read -r -n 1 snap_action
-                echo ""
-                close_attention
-                case "$snap_action" in
-                    [Ss]) ui_info "Proceeding with update without pre-snapshot." ;;
-                    *)    ui_error "Update aborted."; exit 1 ;;
-                esac
-            else
-                ui_error "Non-interactive environment: pre-snapshot failed. Aborting."
+            if [[ ! -t 0 ]]; then
                 exit 1
             fi
+            ui_warn "Pre-snapshot skipped. Continuing update..."
         fi
     fi
 

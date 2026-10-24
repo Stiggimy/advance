@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Full CLI Localization (i18n)**: Multi-language translation catalogs (`gettext`) for CLI output, prompts, and interactive menus.
 - **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
 
+## [0.11.2] — 2026-10-24
+
+### Fixed
+- **Pre-Update Snapshot Progress Streaming**: Enabled real-time display of snapshot creation progress and phase banners during pre-update snapshots, matching the post-update snapshot visual feedback while preserving automated snapshot ID extraction for post-snapshot linking.
+
 ## [0.11.1] — 2026-10-23
 
 ### Added
