@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Full CLI Localization (i18n)**: Multi-language translation catalogs (`gettext`) for CLI output, prompts, and interactive menus.
 - **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
 
+## [0.11.3] — 2026-10-28
+
+### Fixed
+- **Retry Escalation Box Formatting & Alignment**: Overhauled the error retry escalation box layout in `lib/retry.sh` with exact emoji display-width calculations, uniform border padding, and dynamic responsive auto-wrapping using terminal column detection.
+- **Firmware Update Execution & Status Detection**: Wrapped `fwupdmgr` refresh and update sequence in POSIX shell wrapper (`sh -c`) to cleanly forward auto-confirm flags (`--assume-yes`) and handle up-to-date return codes (`2`), preventing compound group syntax errors. Expanded output noise filter regex to ignore up-to-date device headers and avoid false positive update notifications.
+
 ## [0.11.2] — 2026-10-24
 
 ### Fixed

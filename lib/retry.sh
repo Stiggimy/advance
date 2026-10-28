@@ -39,6 +39,129 @@ close_attention() {
 # --- Retry Engine ---
 LAST_CMD_OUTPUT=""
 
+# Dynamically formats and renders the error escalation box with uniform borders,
+# exact emoji display-width calculations, and responsive terminal auto-wrapping.
+_render_retry_box() {
+    local phase="$1"
+    local attempts="$2"
+    local retry_word="$3"
+    local exit_code="$4"
+    local cmd="$5"
+
+    local term_cols="${COLUMNS:-}"
+    [[ -z "$term_cols" ]] && term_cols=$(tput cols 2>/dev/null || echo 80)
+    [[ ! "$term_cols" =~ ^[0-9]+$ || $term_cols -lt 40 ]] && term_cols=80
+
+    local icon="[FAIL]"
+    local icon_w=6
+    local title_text="$phase failed after $attempts $retry_word."
+    if [[ $exit_code -eq 130 ]]; then
+        icon="[WARN]"
+        icon_w=6
+        title_text="$phase was interrupted (Ctrl+C)."
+        if [[ "$USE_EMOJI" == true ]]; then
+            icon="⚠️"
+            icon_w=2
+        fi
+    elif [[ "$USE_EMOJI" == true ]]; then
+        icon="❌"
+        icon_w=2
+    fi
+
+    local clean_title
+    clean_title=$(printf '%b' "$title_text" | sed 's/\x1b\[[0-9;]*m//g')
+    local title_vis_len=$((icon_w + 1 + ${#clean_title}))
+    local cmd_prefix="Command: "
+
+    local max_cmd_line_len=0
+    local cmd_l
+    while IFS= read -r cmd_l; do
+        local clean_cmd_l
+        clean_cmd_l=$(printf '%b' "$cmd_l" | sed 's/\x1b\[[0-9;]*m//g')
+        [[ ${#clean_cmd_l} -gt $max_cmd_line_len ]] && max_cmd_line_len=${#clean_cmd_l}
+    done <<< "$cmd"
+    local cmd_vis_len=$((${#cmd_prefix} + max_cmd_line_len))
+
+    local max_content_w=$cmd_vis_len
+    [[ $title_vis_len -gt $max_content_w ]] && max_content_w=$title_vis_len
+
+    # Box margins: 2 interior spaces left + 2 interior spaces right + 2 vertical borders = 6 columns overhead
+    local max_allowed_w=$((term_cols - 6))
+    [[ $max_allowed_w -lt 24 ]] && max_allowed_w=24
+
+    local avail_w=$max_content_w
+    [[ $max_content_w -gt $max_allowed_w ]] && avail_w=$max_allowed_w
+
+    local box_w=$((avail_w + 4))
+    local box_top="┌"
+    local box_bot="└"
+    local i
+    for ((i=0; i<box_w; i++)); do
+        box_top+="─"
+        box_bot+="─"
+    done
+    box_top+="┐"
+    box_bot+="┘"
+
+    printf "\n%b\n" "${C_RED}${box_top}${C_RESET}"
+
+    local avail_title_w=$((avail_w - icon_w - 1))
+    if command -v fold >/dev/null 2>&1 && [[ ${#clean_title} -gt $avail_title_w && $avail_title_w -gt 10 ]]; then
+        local wrapped_title first_t=true t_line t_pad t_padding
+        local t_indent
+        t_indent=$(printf '%*s' "$((icon_w + 1))" "")
+        wrapped_title=$(echo "$title_text" | fold -s -w "$avail_title_w")
+        while IFS= read -r t_line; do
+            local clean_t_line
+            clean_t_line=$(printf '%b' "$t_line" | sed 's/\x1b\[[0-9;]*m//g')
+            t_pad=$((avail_title_w - ${#clean_t_line}))
+            [[ $t_pad -lt 0 ]] && t_pad=0
+            t_padding=$(printf '%*s' "$t_pad" "")
+            if [[ "$first_t" == true ]]; then
+                printf "%b  %s %s%s  %b\n" "${C_RED}│${C_RESET}" "$icon" "$t_line" "$t_padding" "${C_RED}│${C_RESET}"
+                first_t=false
+            else
+                printf "%b  %s%s%s  %b\n" "${C_RED}│${C_RESET}" "$t_indent" "$t_line" "$t_padding" "${C_RED}│${C_RESET}"
+            fi
+        done <<< "$wrapped_title"
+    else
+        local title_pad=$((avail_w - title_vis_len))
+        [[ $title_pad -lt 0 ]] && title_pad=0
+        local title_padding
+        title_padding=$(printf '%*s' "$title_pad" "")
+        printf "%b  %s %s%s  %b\n" "${C_RED}│${C_RESET}" "$icon" "$title_text" "$title_padding" "${C_RED}│${C_RESET}"
+    fi
+
+    local avail_cmd_w=$((avail_w - ${#cmd_prefix}))
+    if command -v fold >/dev/null 2>&1 && [[ "$cmd" == *$'\n'* || ${#cmd} -gt $avail_cmd_w ]] && [[ $avail_cmd_w -gt 15 ]]; then
+        local wrapped_cmd first_c=true c_line c_pad c_padding
+        local c_indent
+        c_indent=$(printf '%*s' "${#cmd_prefix}" "")
+        wrapped_cmd=$(echo "$cmd" | fold -s -w "$avail_cmd_w")
+        while IFS= read -r c_line; do
+            local clean_c_line
+            clean_c_line=$(printf '%b' "$c_line" | sed 's/\x1b\[[0-9;]*m//g')
+            c_pad=$((avail_cmd_w - ${#clean_c_line}))
+            [[ $c_pad -lt 0 ]] && c_pad=0
+            c_padding=$(printf '%*s' "$c_pad" "")
+            if [[ "$first_c" == true ]]; then
+                printf "%b  %s%s%s  %b\n" "${C_RED}│${C_RESET}" "$cmd_prefix" "$c_line" "$c_padding" "${C_RED}│${C_RESET}"
+                first_c=false
+            else
+                printf "%b  %s%s%s  %b\n" "${C_RED}│${C_RESET}" "$c_indent" "$c_line" "$c_padding" "${C_RED}│${C_RESET}"
+            fi
+        done <<< "$wrapped_cmd"
+    else
+        local cmd_pad=$((avail_w - cmd_vis_len))
+        [[ $cmd_pad -lt 0 ]] && cmd_pad=0
+        local cmd_padding
+        cmd_padding=$(printf '%*s' "$cmd_pad" "")
+        printf "%b  %s%s%s  %b\n" "${C_RED}│${C_RESET}" "$cmd_prefix" "$cmd" "$cmd_padding" "${C_RED}│${C_RESET}"
+    fi
+
+    printf "%b\n\n" "${C_RED}${box_bot}${C_RESET}"
+}
+
 run_with_retry() {
     local phase="$1"; local type="$2"; local cmd="$3"; local no_interactive_flag="$4"; local interactive_flag="$5"; local override_flag="$6"
     local fallback_label="$7"
@@ -102,28 +225,8 @@ run_with_retry() {
             request_attention "$phase failed after $attempts $retry_word."
         fi
 
-        local icon="[FAIL]"; [[ "$USE_EMOJI" == true ]] && icon="❌"
-        local title=" $icon $phase failed after $attempts $retry_word. "
-        if [[ $exit_code -eq 130 ]]; then
-            icon="[WARN]"; [[ "$USE_EMOJI" == true ]] && icon="⚠️"
-            title=" $icon $phase was interrupted (Ctrl+C). "
-        fi
-        local cmd_line=" Command: $cmd "
-        local width=${#cmd_line}
-        [[ ${#title} -gt $width ]] && width=${#title}
-        local box_top="┌"
-        local box_bot="└"
-        for ((i=0; i<width; i++)); do
-            box_top+="─"
-            box_bot+="─"
-        done
-        box_top+="┐"
-        box_bot+="┘"
-
-        echo -e "\n${C_RED}${box_top}${C_RESET}"
-        printf "${C_RED}│${C_RESET} %-${width}s ${C_RED}│${C_RESET}\n" "$title"
-        printf "${C_RED}│${C_RESET} %-${width}s ${C_RED}│${C_RESET}\n" "$cmd_line"
-        echo -e "${C_RED}${box_bot}${C_RESET}\n"
+        # Escalation Box
+        _render_retry_box "$phase" "$attempts" "$retry_word" "$exit_code" "$cmd"
 
         if [[ "$type" != "checkpoint" && "$phase" != *Snapshot* && -z "$no_interactive_flag" && -z "$interactive_flag" ]]; then
             local note_icon="[!] "; [[ "$USE_EMOJI" == true ]] && note_icon="⚠️  "
