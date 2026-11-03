@@ -356,7 +356,7 @@ browse_changelog_interactive() {
         export CL_FILE="$changelog"
         printf "%s\n" "${lines[@]}" | fzf --ansi --reverse --height=85% \
             --header "--- Advance Release Notes Browser (Enter to view, ESC to exit) ---" \
-            --preview 'awk -v target="{1}" '\''
+            --preview 'awk -v target={1} '\''
                 BEGIN {
                     in_ver = 0
                     C_YELLOW = "\033[1;33m"; C_GREEN = "\033[1;32m"; C_CYAN = "\033[1;36m"

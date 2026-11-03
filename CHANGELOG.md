@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
 - **Native Windows Port (Far Future)**: Support native Windows environments and package managers (Winget, Scoop, Chocolatey) alongside Linux/WSL.
 
+## [0.12.1] — 2026-11-03
+
+### Fixed
+- **Changelog Browser Preview Pane**: Resolved an issue where release notes failed to render in the right-hand preview pane of the interactive release notes browser (`advance changelog` and configuration menu) due to literal single-quote wrapping in AWK target variable passing.
+
 ## [0.12.0] — 2026-11-03
 
 ### Added
