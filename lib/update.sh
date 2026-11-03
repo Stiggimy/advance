@@ -896,6 +896,8 @@ EOF
 
         # Run with fallback support
         local current_idx=$mgr_idx
+        local lock_file="${CUSTOM_LOCK_FILES[$current_idx]}"
+        local req_cmd="${CUSTOM_REQUIRES_CMDS[$current_idx]}"
         local fb_pos=0
         local fb_chain
         fb_chain=($(get_fallback_chain "$mgr_idx"))
@@ -908,7 +910,7 @@ EOF
                 fallback_label="${CUSTOM_NAMES[$fb_idx]} (priority ${CUSTOM_PRIORITIES[$fb_idx]})"
             fi
 
-            run_with_retry "$name Update" "$name" "$cmd" "$flags_auto_confirm" "$flags_interactive" "$flags_override" "$fallback_label"
+            run_with_retry "$name Update" "$name" "$cmd" "$flags_auto_confirm" "$flags_interactive" "$flags_override" "$fallback_label" "$lock_file" "$req_cmd"
             local ret=$?
 
             if [[ $ret -eq 0 ]]; then
@@ -922,6 +924,8 @@ EOF
                     flags_auto_confirm="${CUSTOM_FLAGS_AUTO_CONFIRMS[$current_idx]}"
                     flags_interactive="${CUSTOM_FLAGS_INTERACTIVES[$current_idx]}"
                     flags_override="${CUSTOM_FLAGS_OVERRIDES[$current_idx]}"
+                    lock_file="${CUSTOM_LOCK_FILES[$current_idx]}"
+                    req_cmd="${CUSTOM_REQUIRES_CMDS[$current_idx]}"
 
                     # Rebuild command for fallback manager
                     cmd=$(build_manager_update_cmd "$current_idx")

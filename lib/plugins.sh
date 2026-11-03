@@ -193,6 +193,7 @@ CUSTOM_REQUIRES_CMDS=()
 CUSTOM_PRIORITIES=()
 CUSTOM_GROUPS=()
 CUSTOM_PROBE_ACTIVE_CMDS=()
+CUSTOM_LOCK_FILES=()
 
 _load_single_conf() {
     local conf="$1"
@@ -202,7 +203,7 @@ _load_single_conf() {
     local check_exit_code="" check_filter="" check_timeout_fb=""
     local enabled="true" requires_cmd="" priority="0"
     local post_update_msg_id="" post_update_msg=""
-    local check_dep_bin="" check_dep_cmd="" probe_cmd=""
+    local check_dep_bin="" check_dep_cmd="" probe_cmd="" lock_file=""
     while IFS='=' read -r key value || [[ -n "$key" ]]; do
         [[ -z "$key" || "$key" == \#* ]] && continue
         key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
@@ -234,6 +235,7 @@ _load_single_conf() {
             REQUIRES_CMD) requires_cmd="$value" ;;
             PRIORITY) priority="$value" ;;
             PROBE_ACTIVE_CMD) probe_cmd="$value" ;;
+            LOCK_FILE) lock_file="$value" ;;
         esac
     done < "$conf"
 
@@ -281,6 +283,7 @@ _load_single_conf() {
                 REQUIRES_CMD) requires_cmd="$ovalue" ;;
                 PRIORITY) priority="$ovalue" ;;
                 PROBE_ACTIVE_CMD) probe_cmd="$ovalue" ;;
+                LOCK_FILE) lock_file="$ovalue" ;;
             esac
         done < "$override_file"
     fi
@@ -327,6 +330,7 @@ _load_single_conf() {
     CUSTOM_PRIORITIES+=("$priority")
     CUSTOM_GROUPS+=("$group")
     CUSTOM_PROBE_ACTIVE_CMDS+=("$probe_cmd")
+    CUSTOM_LOCK_FILES+=("$lock_file")
 }
 
 load_custom_managers() {
@@ -357,6 +361,7 @@ load_custom_managers() {
     CUSTOM_PRIORITIES=()
     CUSTOM_GROUPS=()
     CUSTOM_PROBE_ACTIVE_CMDS=()
+    CUSTOM_LOCK_FILES=()
 
     [[ ! -d "$CUSTOM_DIR" ]] && mkdir -p "$CUSTOM_DIR"
 
@@ -430,7 +435,7 @@ save_custom_manager() {
     local check_exit_code="${19:-}"; local check_filter="${20:-}"; local check_timeout_fb="${21:-}"
     local post_update_msg_id="${22:-}"; local post_update_msg="${23:-}"
     local check_dep_bin="${24:-}"; local check_dep_cmd="${25:-}"
-    local probe_cmd="${26:-}"
+    local probe_cmd="${26:-}"; local lock_file="${27:-}"
 
     if [[ -z "$conf_file" ]]; then
         conf_file="$CUSTOM_DIR/${name// /_}.conf"
@@ -472,5 +477,6 @@ EOF
     [[ -n "$post_update_msg" ]] && echo "POST_UPDATE_MSG=$post_update_msg" >> "$conf_file"
     echo "ENABLED=$enabled" >> "$conf_file"
     [[ -n "$probe_cmd" ]] && echo "PROBE_ACTIVE_CMD=$probe_cmd" >> "$conf_file"
+    [[ -n "$lock_file" ]] && echo "LOCK_FILE=$lock_file" >> "$conf_file"
     return 0
 }

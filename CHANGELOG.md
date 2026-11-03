@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Planned
 - **Full CLI Localization (i18n)**: Multi-language translation catalogs (`gettext`) for CLI output, prompts, and interactive menus.
 - **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
+- **Native Windows Port (Far Future)**: Support native Windows environments and package managers (Winget, Scoop, Chocolatey) alongside Linux/WSL.
+
+## [0.12.0] — 2026-11-03
+
+### Added
+- **Orphaned Lock Detection & Recovery (`LOCK_FILE`)**: Added declarative `LOCK_FILE` support to package manager recipes (`pacman`, `yay`, `paru`, and custom managers). When an update fails and the lock file exists on disk, Advance verifies via `fuser`, `lsof`, and `pgrep` whether any process is actively holding it; if verified as an orphaned lock, skips futile auto-retries and offers a safe `[U]nlock` option in the escalation menu to remove the stale lock and retry immediately.
+- **Interactive Command Editor on Retry (`[E]dit`)**: Added an `[E]dit` action to the failure escalation menu in `lib/retry.sh`. Pre-populates an interactive Readline prompt with the failing command string so users can tweak flags or parameters on the fly for that attempt without modifying catalog recipes.
+- **Advanced Manager Settings Wizard Expansion**: Extended the Add Custom Manager wizard and manager edit submenus with dedicated configuration for existence-based orphaned lock files.
 
 ## [0.11.3] — 2026-10-28
 

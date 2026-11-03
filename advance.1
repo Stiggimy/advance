@@ -10,8 +10,7 @@ is a modular, portable system update utility for Linux. Everything runs through 
 .PP
 Advance automatically resolves package managers within each group by priority, runs pre-flight network connectivity checks, coordinates transactional pre-update and post-update system snapshots via \fBcheckpoint\fR, and handles failure recovery through automatic fallback chains.
 .PP
-If an active package manager in a group encounters an error during updates, Advance provides an interactive retry escalation menu featuring an automatic \fBFallback\fR option to switch to the next available manager in that group.
-
+If an active package manager in a group encounters an error during updates, Advance provides an interactive retry escalation menu featuring options to \fB[U]nlock\fR verified orphaned lock files, \fB[R]etry\fR, \fB[E]dit\fR the command string on the fly, apply conflict \fB[O]verrides\fR, switch to manual \fB[I]nteractive\fR confirmation, or trigger an automatic \fB[F]allback\fR to the next available manager in that group.
 .SH TARGETING & GROUPS
 .B Groups
 are defined by subdirectories inside \fB$XDG_CONFIG_HOME/advance/managers.d/\fR (default \fB~/.config/advance/managers.d/\fR):
@@ -33,13 +32,11 @@ $XDG_CONFIG_HOME/advance/managers.d/
 .RE
 .PP
 Within each group, managers must have distinct priority values. Groups execute in order of their group execution priority (default: \fBsystem\fR is 100, other groups are 50, configurable via \fBadvance config\fR or \fBGROUP_PRIORITY_<group>\fR). Only the highest-priority installed and enabled manager runs as the active manager. Lower-priority managers remain on standby for fallback if the active manager fails. Loose \fB.conf\fR files in the root of \fBmanagers.d/\fR are standalone and run whenever enabled.
-
 .SH OPTIONS
 .SS Modes
 .TP
 .BR \-ch ", " \-\-check
 Check for available updates across all active sources without installing them. Displays update counts and package totals. When combined with \fB\-v\fR/\fB\-\-verbose\fR, displays the list of upgradable packages for each source. Does not require sudo privileges.
-
 .SS Target Selection
 Specifying any target flag activates "only-mode", disabling all unselected managers and snapshot phases unless explicitly requested.
 .TP
@@ -54,7 +51,6 @@ Skip updates for the specified package manager. Repeatable. If the skipped manag
 .TP
 .BR \-ng ", " \-\-no\-group " \fIGROUP\fR"
 Skip an entire group of package managers. Repeatable.
-
 .SS Phase Control
 .TP
 .BR \-oprs ", " \-\-only\-pre\-snapshot
@@ -71,7 +67,6 @@ Skip creating the post-update snapshot.
 .TP
 .BR \-nc ", " \-\-no\-cleanup
 Skip snapshot auto-cleanup after updates.
-
 .SS Snapshot Modifiers
 .TP
 .BR \-fprs ", " \-\-force\-pre\-snapshot
@@ -91,7 +86,6 @@ Allow deletion of protected \fB[KEEP]\fR snapshots during auto-cleanup.
 .TP
 .BR \-k ", " \-\-keep " \fIN\fR"
 Override snapshot retention limit (Default: 6).
-
 .SS Update Modifiers
 .TP
 .BR \-ef ", " \-\-extra\-flag " \fIMANAGER:FLAG\fR"
@@ -105,7 +99,6 @@ Exclude package from system package updates. Repeatable. Excluded packages are a
 .TP
 .BR \-i ", " \-\-interactive
 Force manual confirmation mode for all managers. Strips auto-confirm flags (\fBFLAGS_AUTO_CONFIRM\fR) and appends \fBFLAGS_INTERACTIVE\fR when configured. Overrides per-manager and global auto-confirm settings.
-
 .SS General Options
 .TP
 .BR \-U ", " \-\-self\-update ", " \-\-selfupdate
@@ -122,7 +115,6 @@ Enable detailed debug logs.
 .TP
 .BR \-h ", " \-\-help
 Display command usage and options.
-
 .SS Subcommands
 .TP
 .B changelog \fR[\fIVERSION\fR]
@@ -145,7 +137,6 @@ Manage official catalog recipes. \fBlist\fR displays all catalog recipes with in
 .TP
 .BR self\-update ", " selfupdate
 Pull latest changes from the git repository and reinstall the tool suite.
-
 .SH ENVIRONMENT
 Advance follows the XDG Base Directory specification. Set these variables to relocate its files:
 .TP
@@ -166,7 +157,6 @@ Override the corresponding Advance directory directly.
 .TP
 .B NO_COLOR
 When set to a non-empty value, disables ANSI colors.
-
 .SH CONFIGURATION FILES
 .TP
 .B $XDG_CONFIG_HOME/advance/config
@@ -231,9 +221,12 @@ Optional user drop-in override files. Values defined here take precedence over c
 .IP \(bu 2
 \fBPOST_UPDATE_MSG\fR: Advice message text shown when this manager successfully updates packages.
 .IP \(bu 2
+\fBPROBE_ACTIVE_CMD\fR: Optional command evaluated to verify active service or filesystem state before scheduling updates.
+.IP \(bu 2
+\fBLOCK_FILE\fR: Optional existence-based lock file path (e.g. \fB/var/lib/pacman/db.lck\fR). When an update fails and this file exists with no active process holding it (verified via \fBfuser\fR/\fBlsof\fR/\fBpgrep\fR), Advance offers a safe \fB[U]nlock\fR recovery choice.
+.IP \(bu 2
 \fBENABLED\fR: Set to \fBtrue\fR or \fBfalse\fR.
 .RE
-
 .SH SEE ALSO
 .BR checkpoint (1),
 .BR snapper (8),

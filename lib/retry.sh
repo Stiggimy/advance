@@ -162,9 +162,47 @@ _render_retry_box() {
     printf "%b\n\n" "${C_RED}${box_bot}${C_RESET}"
 }
 
+# Evaluates whether a configured lock file exists and whether it is orphaned or actively held.
+# Returns:
+#   0 = Orphaned lock verified (lock file exists, no active process holds it)
+#   1 = No lock file configured or lock file does not exist on disk
+#   2 = Active lock contention (lock file exists and a process is actively using it)
+_check_lock_status() {
+    local lock_file="${1:-}"
+    local req_cmd="${2:-}"
+    [[ -z "$lock_file" || ! -e "$lock_file" ]] && return 1
+
+    # 1. Check open file descriptors via fuser or lsof
+    if command -v fuser >/dev/null 2>&1 && fuser "$lock_file" >/dev/null 2>&1; then
+        return 2
+    fi
+    if command -v lsof >/dev/null 2>&1 && lsof "$lock_file" >/dev/null 2>&1; then
+        return 2
+    fi
+
+    # 2. Check running processes via pgrep (handles existence-based locks where FD is closed)
+    if command -v pgrep >/dev/null 2>&1; then
+        if [[ -n "$req_cmd" ]] && pgrep -x "$req_cmd" >/dev/null 2>&1; then
+            return 2
+        fi
+        local lock_owner
+        lock_owner=$(basename "$(dirname "$lock_file")")
+        case "$lock_owner" in
+            ""|.|/|var|lib|run|tmp|lock|cache|etc|opt|usr|local|state|share) ;;
+            *)
+                if pgrep -x "$lock_owner" >/dev/null 2>&1; then
+                    return 2
+                fi
+                ;;
+        esac
+    fi
+
+    return 0
+}
+
 run_with_retry() {
     local phase="$1"; local type="$2"; local cmd="$3"; local no_interactive_flag="$4"; local interactive_flag="$5"; local override_flag="$6"
-    local fallback_label="$7"
+    local fallback_label="${7:-}"; local lock_file="${8:-}"; local req_cmd="${9:-}"
     local original_cmd="$cmd"
     local attempts=0 max_retries=$AUTO_RETRIES force_applied=false i tmp_log="" exit_code=0 action=""
     local prev_pipefail=false
@@ -186,8 +224,16 @@ run_with_retry() {
 
         [[ $exit_code -eq 0 ]] && return 0
 
-        # If interrupted by user (SIGINT/Ctrl+C), skip auto-retries and jump straight to escalation
-        if [[ $exit_code -eq 130 ]]; then
+        # Evaluate lock file state (0=orphaned, 1=none, 2=active contention)
+        local lock_status=1
+        if _check_lock_status "$lock_file" "$req_cmd"; then
+            lock_status=0
+        else
+            lock_status=$?
+        fi
+
+        # If interrupted by user (SIGINT/Ctrl+C) or blocked by a verified orphaned lock, skip futile auto-retries
+        if [[ $exit_code -eq 130 || $lock_status -eq 0 ]]; then
             attempts=$max_retries
         fi
 
@@ -228,6 +274,16 @@ run_with_retry() {
         # Escalation Box
         _render_retry_box "$phase" "$attempts" "$retry_word" "$exit_code" "$cmd"
 
+        if [[ $lock_status -eq 0 ]]; then
+            local lock_icon="[LOCK] "; [[ "$USE_EMOJI" == true ]] && lock_icon="🔓 "
+            echo -e "${C_YELLOW}${lock_icon}${C_BOLD}Orphaned Lock Detected:${C_RESET}${C_YELLOW} $lock_file${C_RESET}"
+            echo -e "${C_YELLOW}    Verified via process check (fuser/lsof/pgrep): no active process is holding this lock.${C_RESET}\n"
+        elif [[ $lock_status -eq 2 ]]; then
+            local busy_icon="[BUSY] "; [[ "$USE_EMOJI" == true ]] && busy_icon="🔒 "
+            echo -e "${C_YELLOW}${busy_icon}${C_BOLD}Active Lock Contention:${C_RESET}${C_YELLOW} $lock_file is currently held by a running process.${C_RESET}"
+            echo -e "${C_YELLOW}    Wait for the other package manager process to finish before choosing [R] Retry.${C_RESET}\n"
+        fi
+
         if [[ "$type" != "checkpoint" && "$phase" != *Snapshot* && -z "$no_interactive_flag" && -z "$interactive_flag" ]]; then
             local note_icon="[!] "; [[ "$USE_EMOJI" == true ]] && note_icon="⚠️  "
             echo -e "${C_YELLOW}${note_icon}Note: No auto-confirm flag is configured for this manager.${C_RESET}"
@@ -235,6 +291,10 @@ run_with_retry() {
         fi
 
         echo -e "What would you like to do?\n"
+        if [[ $lock_status -eq 0 ]]; then
+            echo -e "  [${C_GREEN}U${C_RESET}] Unlock       — Remove orphaned lock file ($lock_file) and retry."
+            echo -e "                     Verified safe: no active package manager process is running."
+        fi
         echo -e "  [${C_GREEN}R${C_RESET}] Retry        — Run the exact same command again."
         echo -e "                     Use this if you think it was a temporary glitch."
 
@@ -277,6 +337,8 @@ run_with_retry() {
             echo -e "                     Use this if this manager is broken and another can do the job."
         fi
 
+        echo -e "  [${C_CYAN}E${C_RESET}] Edit         — Edit the command string before retrying."
+        echo -e "                     Use this to add custom flags or modify options on the fly."
         echo -e "  [${C_YELLOW}S${C_RESET}] Skip         — Skip this phase and continue with the rest."
         echo -e "                     The update won't be applied, but nothing else is affected."
         echo -e "  [${C_RED}A${C_RESET}] Abort        — Stop everything and exit right now."
@@ -296,6 +358,35 @@ run_with_retry() {
             read -r -n 1 action
             echo ""
             case "$action" in
+                [Uu])
+                    if [[ $lock_status -eq 0 && -n "$lock_file" ]]; then
+                        local recheck_status=1
+                        if _check_lock_status "$lock_file" "$req_cmd"; then
+                            recheck_status=0
+                        else
+                            recheck_status=$?
+                        fi
+                        if [[ $recheck_status -eq 2 ]]; then
+                            ui_warn "Lock file $lock_file is now in use by an active process. Cannot remove while active."
+                        elif [[ $recheck_status -eq 1 ]]; then
+                            ui_info "Lock file $lock_file was already removed. Retrying..."
+                            close_attention
+                            attempts=0
+                            break
+                        else
+                            ui_info "Removing orphaned lock file: $lock_file..."
+                            if rm -f "$lock_file" 2>/dev/null || sudo rm -f "$lock_file"; then
+                                ui_ok "Orphaned lock file removed: $lock_file"
+                                close_attention
+                                attempts=0
+                                break
+                            else
+                                ui_error "Failed to remove lock file: $lock_file"
+                            fi
+                        fi
+                    else
+                        echo "Invalid choice."
+                    fi ;;
                 [Rr]) close_attention; attempts=0; break ;;
                 [Oo])
                     if [[ "$has_override" == true ]]; then
@@ -333,6 +424,23 @@ run_with_retry() {
                         return 2  # Special: fallback requested
                     else
                         echo "Invalid choice."
+                    fi ;;
+                [Ee])
+                    echo -e "\n${C_BOLD}Edit command below (Enter to run, Ctrl+C to cancel):${C_RESET}"
+                    local custom_cmd=""
+                    if read -e -r -i "$cmd" -p "> " custom_cmd; then
+                        custom_cmd=$(trim "$custom_cmd")
+                        if [[ -n "$custom_cmd" ]]; then
+                            cmd="$custom_cmd"
+                            close_attention
+                            attempts=0
+                            break
+                        else
+                            ui_warn "Command cannot be empty. Please enter a valid command or select another option."
+                        fi
+                    else
+                        echo ""
+                        ui_info "Edit cancelled."
                     fi ;;
                 [Ss]) close_attention; return 1 ;;
                 [Aa]) close_attention; exit 1 ;;

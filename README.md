@@ -16,14 +16,16 @@ Advance is a modern, modular, distro-agnostic update orchestrator for Linux. It 
 - 🛡️ **Safety & Snapshots:** Deep integration with [`checkpoint`](https://github.com/Stiggimy/checkpoint) for transactional pre/post snapshot pairing via porcelain IPC, supporting Snapper and Timeshift (BTRFS and RSYNC) with retention policies and minimum age thresholds.
 - 🔁 **Advanced Error Escalation:**
   - Interactive retry menu on failure:
-    - `[R] Retry` — Re-execute command
-    - `[O] Override` — Apply force/conflict override flags
-    - `[I] Interactive` — Strip non-interactive flags for manual confirmation
-    - `[F] Fallback` — Switch to next available manager in group
-    - `[S] Skip` / `[A] Abort`
+    - `[U]nlock` — Detect and safely remove verified orphaned lock files before retrying
+    - `[R]etry` — Re-execute command
+    - `[O]verride` — Apply force/conflict override flags
+    - `[I]nteractive` — Strip non-interactive flags for manual confirmation
+    - `[F]allback` — Switch to next available manager in group
+    - `[E]dit` — Pre-populate and edit the failing command on the fly
+    - `[S]kip` / `[A]bort`
 - 🚫 **Unified Package Exclusions:** Exclude problematic packages on the fly (`-ex <pkg>`), via config (`EXCLUDE_PACKAGES`), or via `$XDG_CONFIG_HOME/advance/excludes`. Automatically mapped to manager-native exclusion flags.
 - 📁 **XDG-Aware:** Configuration, data, cache, and state follow the XDG Base Directory specification.
-- 🧙 **Granular Custom Manager Wizard:** Guided step-by-step walkthrough (`advance config`) or Quick Setup with smart defaults, auto-inferred binaries (`_infer_required_binary`), and advanced engine settings (`PROBE_ACTIVE_CMD`, `EXCLUDE_HOLD_CMD`, `POST_UPDATE_MSG`).
+- 🧙 **Granular Custom Manager Wizard:** Guided step-by-step walkthrough (`advance config`) or Quick Setup with smart defaults, auto-inferred binaries (`_infer_required_binary`), and advanced engine settings (`PROBE_ACTIVE_CMD`, `LOCK_FILE`, `EXCLUDE_HOLD_CMD`, `POST_UPDATE_MSG`).
 - 🔄 **Smart Self-Update Detector:** Asynchronous background check against upstream tracking branch with 6-hour caching, interactive `[Y/n/a/d]` prompt, notification banner, or auto-update mode (`advance config`).
 - 🌐 **Pre-flight Connectivity Check:** Verifies network before checking or applying updates to prevent hung scripts.
 - ⚙️ **FZF Menus & Scheduling:** Rich interactive configuration hub (`advance config`) with priority reordering (`Alt+Up`/`Alt+Down`), non-destructive flag tuning, and systemd auto-update scheduler (`advance schedule`).
@@ -75,6 +77,7 @@ EXCLUDE_JOIN=,
 EXCLUDE_HOLD_CMD=            # Optional command to hold excluded packages before update
 EXCLUDE_UNHOLD_CMD=          # Optional command to release held packages after update
 POST_UPDATE_MSG=             # Optional notice shown to user after updating this manager
+LOCK_FILE=/var/lib/pacman/db.lck  # Optional existence-based lock file for orphaned lock recovery
 ENABLED=true
 ```
 

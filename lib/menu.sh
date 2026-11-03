@@ -121,7 +121,7 @@ process_imported_conf() {
     local check_exit_code="" check_filter="" check_timeout_fb=""
     local enabled="true" requires_cmd="" priority="0"
     local post_update_msg_id="" post_update_msg=""
-    local check_dep_bin="" check_dep_cmd="" probe_cmd=""
+    local check_dep_bin="" check_dep_cmd="" probe_cmd="" lock_file=""
     while IFS='=' read -r key value || [[ -n "$key" ]]; do
         [[ -z "$key" || "$key" == \#* ]] && continue
         key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
@@ -153,6 +153,7 @@ process_imported_conf() {
             REQUIRES_CMD) requires_cmd="$value" ;;
             PRIORITY) priority="$value" ;;
             PROBE_ACTIVE_CMD) probe_cmd="$value" ;;
+            LOCK_FILE) lock_file="$value" ;;
         esac
     done < "$conf"
 
@@ -278,7 +279,7 @@ process_imported_conf() {
         "$check_exit_code" "$check_filter" "$check_timeout_fb" \
         "$post_update_msg_id" "$post_update_msg" \
         "$check_dep_bin" "$check_dep_cmd" \
-        "$probe_cmd"
+        "$probe_cmd" "$lock_file"
     ui_ok "Package manager '$name' imported successfully!"
 }
 
@@ -900,13 +901,14 @@ _edit_check_settings_menu() {
     done
 }
 
-# Interactive submenu for Advanced Manager Settings (Daemon probe, package hold/unhold, post-update messages)
-# Uses caller variables: name, probe_cmd, exclude_hold_cmd, exclude_unhold_cmd, post_update_msg, post_update_msg_id
+# Interactive submenu for Advanced Manager Settings (Daemon probe, orphaned lock file, package hold/unhold, post-update messages)
+# Uses caller variables: name, probe_cmd, lock_file, exclude_hold_cmd, exclude_unhold_cmd, post_update_msg, post_update_msg_id
 # If $1 == "live", persists changes immediately via _save_current_mgr & _refresh_found
 _edit_advanced_settings_menu() {
     local mode="${1:-wizard}"
     while true; do
         local probe_disp="${probe_cmd:-(none)}"
+        local lock_disp="${lock_file:-(none)}"
         local hold_disp="${exclude_hold_cmd:-(none)}"
         local unhold_disp="${exclude_unhold_cmd:-(none)}"
         local msg_disp="${post_update_msg:-(none)}"
@@ -914,6 +916,7 @@ _edit_advanced_settings_menu() {
 
         local adv_menu=(
             "$(e 🔌)Runtime Service / Daemon Probe  (Currently: $probe_disp)"
+            "$(e 🔐)Orphaned Lock File Path         (Currently: $lock_disp)"
             "$(e 🔒)Package Hold Command            (Currently: $hold_disp)"
             "$(e 🔓)Package Unhold Command          (Currently: $unhold_disp)"
             "$(e 📢)Post-Update Notification Msg    (Currently: $msg_disp)"
@@ -923,11 +926,13 @@ _edit_advanced_settings_menu() {
         )
 
         local a_pick
-        a_pick=$(printf "%s\n" "${adv_menu[@]}" | fzf --height 16 --reverse \
+        a_pick=$(printf "%s\n" "${adv_menu[@]}" | fzf --height 18 --reverse \
             --header "--- Advanced Engine Settings: $name ---" \
             --preview 'case "{}" in
                 *Runtime*Service*|*Daemon*Probe*)
                     echo -e "🔌 Runtime Daemon / Service Probe (PROBE_ACTIVE_CMD)\n────────────────────────────────────────────────\nCommand executed by Advance before checking or scheduling updates to verify that a background service or daemon is running.\n\n• If exit code is 0, Advance proceeds with the manager.\n• If non-zero, Advance considers the manager inactive and skips it.\n• Examples:\n    systemctl is-active --quiet docker\n    pgrep -x snapd\n    docker info" ;;
+                *Orphaned*Lock*|*Lock*File*)
+                    echo -e "🔐 Orphaned Lock File Path (LOCK_FILE)\n──────────────────────────────────────\nOptional path to an existence-based lock file used by this package manager.\n\n• If an update fails and this file exists, Advance verifies via fuser, lsof, and pgrep whether any process is actively using it.\n• If verified as a stale/orphaned lock (e.g. after a crash or power cut), Advance offers a safe [U] Unlock option in the error recovery menu to remove it and retry.\n• Example:\n    /var/lib/pacman/db.lck" ;;
                 *Package*Hold*Command*)
                     echo -e "🔒 Package Hold Command (EXCLUDE_HOLD_CMD)\n──────────────────────────────────────────\nCommand template used to temporarily lock or hold packages from updates.\n\n• Package name is appended to the command.\n• Examples:\n    sudo apt-mark hold\n    pacman -D --asdeps" ;;
                 *Package*Unhold*Command*)
@@ -955,6 +960,21 @@ _edit_advanced_settings_menu() {
                 probe_cmd="$r_pr"
                 if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
                 ui_ok "Service probe command updated."
+            fi
+        elif [[ "$a_pick" == *"Orphaned Lock"* ]]; then
+            echo "Enter existence-based lock file path (e.g. '/var/lib/pacman/db.lck', 'none' to clear):"
+            echo -n "Lock File [current: ${lock_file:-(none)}]: "
+            local r_lk
+            read -r r_lk
+            r_lk=$(trim "$r_lk")
+            if [[ "$r_lk" == "none" || "$r_lk" == "-" || "$r_lk" == "clear" ]]; then
+                lock_file=""
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Orphaned lock file path cleared."
+            elif [[ -n "$r_lk" ]]; then
+                lock_file="$r_lk"
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Orphaned lock file path updated."
             fi
         elif [[ "$a_pick" == *"Package Hold Command"* ]]; then
             echo "Enter package hold command (e.g. 'sudo apt-mark hold', 'none' to clear):"
@@ -1127,7 +1147,8 @@ _save_mgr_by_idx() {
         "${CUSTOM_POST_MSGS[$idx]}" \
         "${CUSTOM_CHECK_DEP_BINS[$idx]}" \
         "${CUSTOM_CHECK_DEP_INSTALLS[$idx]}" \
-        "${CUSTOM_PROBE_ACTIVE_CMDS[$idx]}"
+        "${CUSTOM_PROBE_ACTIVE_CMDS[$idx]}" \
+        "${CUSTOM_LOCK_FILES[$idx]}"
 }
 
 # Renumbers an ordered list of manager indices in clean descending multiples of 10 (N*10 ... 20, 10)
@@ -1840,6 +1861,7 @@ manage_custom_managers_menu() {
             local check_dep_bin=""
             local check_dep_cmd=""
             local probe_cmd=""
+            local lock_file=""
 
             while true; do
                 local cf_summary="${flags_auto_confirm:-(none)}"
@@ -1863,7 +1885,7 @@ manage_custom_managers_menu() {
                     "$(e 🌈)Color Flag:               ${color_flag:-(none)}"
                     "$(e 💥)File Conflict Override:   ${flags_override:-(none)}"
                     "$(e 🚫)Package Exclude Flag:     ${exclude_flag:-(none)} [join: ${exclude_join:-,}]"
-                    "$(e ⚙️)Advanced Engine Settings... (Probe, Hold/Unhold, Post-Msg)"
+                    "$(e ⚙️)Advanced Engine Settings... (Probe, Lock, Hold/Unhold, Post-Msg)"
                     "---"
                     "$(e ❌)Cancel"
                 )
@@ -1895,6 +1917,7 @@ manage_custom_managers_menu() {
   Extra Flags:   ${extra_flags:-(none)}
 
 ── Exclusions & Engine ──
+  Lock File:     ${lock_file:-(none)}
   Exclude Flag:  ${exclude_flag:-(none)}
   Join Mode:     ${exclude_join:-,}
   Hold Cmd:      ${exclude_hold_cmd:-(none)}
@@ -1920,7 +1943,7 @@ PREV_EOF
                         "$exclude_flag" "$exclude_join" "$exclude_hold_cmd" "$exclude_unhold_cmd" \
                         "$check_exit_code" "$check_filter" "$check_timeout_fb" \
                         "$post_update_msg_id" "$post_update_msg" \
-                        "$check_dep_bin" "$check_dep_cmd" "$probe_cmd"
+                        "$check_dep_bin" "$check_dep_cmd" "$probe_cmd" "$lock_file"
 
                     load_custom_managers
                     if [[ -n "$target_group" ]]; then
@@ -2111,10 +2134,6 @@ PREV_EOF
         [[ $found -eq -1 ]] && { ui_error "Manager not found."; continue; }
 
         local conf_file="${CUSTOM_FILES[$found]}"
-        local probe_cmd=""
-        if [[ -f "$conf_file" ]]; then
-            probe_cmd=$(grep '^PROBE_ACTIVE_CMD=' "$conf_file" 2>/dev/null | head -1 | cut -d'=' -f2-)
-        fi
 
         while true; do
             local name="${CUSTOM_NAMES[$found]}"
@@ -2145,6 +2164,8 @@ PREV_EOF
             local requires_cmd="${CUSTOM_REQUIRES_CMDS[$found]}"
             local priority="${CUSTOM_PRIORITIES[$found]}"
             local group="${CUSTOM_GROUPS[$found]}"
+            local probe_cmd="${CUSTOM_PROBE_ACTIVE_CMDS[$found]}"
+            local lock_file="${CUSTOM_LOCK_FILES[$found]}"
 
             local status_str="Enabled"
             [[ "$enabled" != "true" ]] && status_str="Disabled"
@@ -2169,7 +2190,7 @@ PREV_EOF
                     "$check_exit_code" "$check_filter" "$check_timeout_fb" \
                     "$post_update_msg_id" "$post_update_msg" \
                     "$check_dep_bin" "$check_dep_cmd" \
-                    "$probe_cmd"
+                    "$probe_cmd" "$lock_file"
             }
 
             _refresh_found() {
@@ -2193,7 +2214,7 @@ PREV_EOF
                 "$(e 🔎)Configure Check Updates (Currently: ${check_cmd:-(Always Runs)})"
                 "$(e 🚀)Set Update Command"
                 "$(e 🚩)Set Flags & Extras"
-                "$(e ⚙️)Advanced Engine Settings (Daemon Probe, Hold/Unhold, Post-Msg)"
+                "$(e ⚙️)Advanced Engine Settings (Probe, Lock, Hold/Unhold, Post-Msg)"
                 "$(e 🏷️)Rename Manager"
                 "$(e 🗑️)Delete Manager"
                 "---"
@@ -2227,6 +2248,7 @@ PREV_EOF
   Color:         ${color_flag:-(none)}
 
 ── Exclusions & Engine ──
+  Lock File:     ${lock_file:-(none)}
   Flag:          ${exclude_flag:-(none)}
   Join:          ${exclude_join:-(none)}
   Hold Cmd:      ${exclude_hold_cmd:-(none)}
