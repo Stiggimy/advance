@@ -18,8 +18,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # ==============================================================================
 
-VERSION="0.12.1"
-BUILD="122"
+VERSION="0.13.0"
+BUILD="125"
 
 # Auto-detect source directory (handles symlinks seamlessly)
 detect_source_dir() {

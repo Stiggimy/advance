@@ -24,8 +24,9 @@ Advance is a modern, modular, distro-agnostic update orchestrator for Linux. It 
     - `[E]dit` — Pre-populate and edit the failing command on the fly
     - `[S]kip` / `[A]bort`
 - 🚫 **Unified Package Exclusions:** Exclude problematic packages on the fly (`-ex <pkg>`), via config (`EXCLUDE_PACKAGES`), or via `$XDG_CONFIG_HOME/advance/excludes`. Automatically mapped to manager-native exclusion flags.
+- ⏱️ **Smart Stalled-Command Watchdog:** Monitors update processes for output activity. When commands freeze (dead mirrors, hung TCP sockets, or silent prompts), triggers an attention alert with in-band prompt (`[W]ait`, `[T]erminate & Escalate`, `[A]bort`).
 - 📁 **XDG-Aware:** Configuration, data, cache, and state follow the XDG Base Directory specification.
-- 🧙 **Granular Custom Manager Wizard:** Guided step-by-step walkthrough (`advance config`) or Quick Setup with smart defaults, auto-inferred binaries (`_infer_required_binary`), and advanced engine settings (`PROBE_ACTIVE_CMD`, `LOCK_FILE`, `EXCLUDE_HOLD_CMD`, `POST_UPDATE_MSG`).
+- 🧙 **Granular Custom Manager Wizard:** Guided step-by-step walkthrough (`advance config`) or Quick Setup with smart defaults, auto-inferred binaries (`_infer_required_binary`), and advanced engine settings (`PROBE_ACTIVE_CMD`, `LOCK_FILE`, `STALL_TIMEOUT`, `EXCLUDE_HOLD_CMD`, `POST_UPDATE_MSG`).
 - 🔄 **Smart Self-Update Detector:** Asynchronous background check against upstream tracking branch with 6-hour caching, interactive `[Y/n/a/d]` prompt, notification banner, or auto-update mode (`advance config`).
 - 🌐 **Pre-flight Connectivity Check:** Verifies network before checking or applying updates to prevent hung scripts.
 - ⚙️ **FZF Menus & Scheduling:** Rich interactive configuration hub (`advance config`) with priority reordering (`Alt+Up`/`Alt+Down`), non-destructive flag tuning, and systemd auto-update scheduler (`advance schedule`).
@@ -78,6 +79,7 @@ EXCLUDE_HOLD_CMD=            # Optional command to hold excluded packages before
 EXCLUDE_UNHOLD_CMD=          # Optional command to release held packages after update
 POST_UPDATE_MSG=             # Optional notice shown to user after updating this manager
 LOCK_FILE=/var/lib/pacman/db.lck  # Optional existence-based lock file for orphaned lock recovery
+STALL_TIMEOUT=180            # Optional inactivity watchdog timeout in seconds (0 = disabled)
 ENABLED=true
 ```
 
@@ -168,6 +170,7 @@ advance [OPTIONS] [SUBCOMMAND]
 | `-ef, --extra-flag <mgr:flag>` | Append extra CLI flag to manager for this run (repeatable) |
 | `-nef, --no-extra-flags <mgr>` | Clear configured extra flags for manager for this run (repeatable) |
 | `-ex, --exclude <pkg>` | Exclude package from updates for this run (repeatable) |
+| `-st, --stall-timeout <dur>` | Watchdog inactivity timeout before stall prompt (e.g. 3m, 180s, 0) |
 | `-i, --interactive` | Force manual confirmation mode for all managers |
 | `-c, --changelog [ver]` | View release notes or open interactive FZF version browser |
 | `-U, --self-update, --selfupdate` | Pull latest git changes and reinstall the tool suite |

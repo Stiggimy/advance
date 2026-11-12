@@ -13,6 +13,7 @@ ALWAYS_KEEP_PRE=false; ALWAYS_KEEP_POST=false; DEFAULTS=""
 VERBOSE=false; AUTO_RETRIES=1; INFINITE_RETRIES=false
 SNAP_MIN_AGE=10m; EXCLUDE_PACKAGES=""
 AUTO_CONFIRM=true; SKIP_CHECKPOINT_WARNING=false; SELF_UPDATE_CHECK="prompt"
+STALL_TIMEOUT=0
 declare -A GROUP_ENABLED
 declare -A GROUP_PRIORITY
 
@@ -41,6 +42,7 @@ load_config() {
             AUTO_CONFIRM) AUTO_CONFIRM="$value" ;;
             SKIP_CHECKPOINT_WARNING) SKIP_CHECKPOINT_WARNING="$value" ;;
             SELF_UPDATE_CHECK) SELF_UPDATE_CHECK="$value" ;;
+            STALL_TIMEOUT) STALL_TIMEOUT="$value" ;;
         esac
     done < "$CONFIG_FILE"
     : "${SELF_UPDATE_CHECK:=prompt}"
@@ -65,6 +67,7 @@ save_config() {
         echo "AUTO_CONFIRM=$AUTO_CONFIRM"
         echo "SKIP_CHECKPOINT_WARNING=$SKIP_CHECKPOINT_WARNING"
         echo "SELF_UPDATE_CHECK=$SELF_UPDATE_CHECK"
+        echo "STALL_TIMEOUT=$STALL_TIMEOUT"
         # Write group toggles (sorted so the file stays stable between saves)
         local grp
         while IFS= read -r grp; do

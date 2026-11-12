@@ -8,9 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
+- **Express & Comprehensive Wizard Overhaul**: Two-tier wizard architecture (Express vs Comprehensive) with maximum field auto-inference, ultra-plain non-technical guidance for manual fields, and graceful premature exit protection (Save Partial Draft, Discard, or Continue).
 - **Full CLI Localization (i18n)**: Multi-language translation catalogs (`gettext`) for CLI output, prompts, and interactive menus.
 - **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
 - **Native Windows Port (Far Future)**: Support native Windows environments and package managers (Winget, Scoop, Chocolatey) alongside Linux/WSL.
+
+## [0.13.0] — 2026-11-12
+
+### Fixed
+- **Package Managers Menu Compatibility**: Fixed the menu closing immediately on older fzf versions that reject Ctrl+Up/Down. Alt+Up/Down remains available for reordering, and Ctrl+Up/Down is enabled when supported.
+
+### Added
+- **Smart Stalled-Command Timeout & Watchdog Supervisor (`STALL_TIMEOUT`, `-st`)**: Added inactivity watchdog monitoring during package manager update execution. When a command freezes (e.g. unreachable mirrors, hung TCP sockets, or silent prompts) and produces no output for the configured duration (global `STALL_TIMEOUT` or per-manager recipe, overridable via `-st`/`--stall-timeout`), Advance alerts the user with an audible bell and desktop notification, offering an interactive prompt: `[W]ait` (extend time), `[T]erminate` (cleanly kill process tree and escalate to recovery menu), or `[A]bort`. Seamlessly transitions into `[U]nlock` and `[E]dit` recovery if the terminated process leaves an orphaned lock file.
+- **Advanced Manager Settings Wizard Expansion**: Extended the Add Custom Manager wizard (`Review & Save`), manager edit submenus, and manager import/export routines with dedicated configuration for per-manager `STALL_TIMEOUT` watchdog thresholds.
+- **Global Stalled-Command Watchdog Preference**: Added interactive configuration for default `STALL_TIMEOUT` in `advance config` under Execution & Error Handling.
 
 ## [0.12.1] — 2026-11-03
 

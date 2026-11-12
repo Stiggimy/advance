@@ -203,7 +203,7 @@ _load_single_conf() {
     local check_exit_code="" check_filter="" check_timeout_fb=""
     local enabled="true" requires_cmd="" priority="0"
     local post_update_msg_id="" post_update_msg=""
-    local check_dep_bin="" check_dep_cmd="" probe_cmd="" lock_file=""
+    local check_dep_bin="" check_dep_cmd="" probe_cmd="" lock_file="" stall_timeout=""
     while IFS='=' read -r key value || [[ -n "$key" ]]; do
         [[ -z "$key" || "$key" == \#* ]] && continue
         key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
@@ -236,6 +236,7 @@ _load_single_conf() {
             PRIORITY) priority="$value" ;;
             PROBE_ACTIVE_CMD) probe_cmd="$value" ;;
             LOCK_FILE) lock_file="$value" ;;
+            STALL_TIMEOUT) stall_timeout="$value" ;;
         esac
     done < "$conf"
 
@@ -284,6 +285,7 @@ _load_single_conf() {
                 PRIORITY) priority="$ovalue" ;;
                 PROBE_ACTIVE_CMD) probe_cmd="$ovalue" ;;
                 LOCK_FILE) lock_file="$ovalue" ;;
+                STALL_TIMEOUT) stall_timeout="$ovalue" ;;
             esac
         done < "$override_file"
     fi
@@ -331,6 +333,7 @@ _load_single_conf() {
     CUSTOM_GROUPS+=("$group")
     CUSTOM_PROBE_ACTIVE_CMDS+=("$probe_cmd")
     CUSTOM_LOCK_FILES+=("$lock_file")
+    CUSTOM_STALL_TIMEOUTS+=("$stall_timeout")
 }
 
 load_custom_managers() {
@@ -362,6 +365,7 @@ load_custom_managers() {
     CUSTOM_GROUPS=()
     CUSTOM_PROBE_ACTIVE_CMDS=()
     CUSTOM_LOCK_FILES=()
+    CUSTOM_STALL_TIMEOUTS=()
 
     [[ ! -d "$CUSTOM_DIR" ]] && mkdir -p "$CUSTOM_DIR"
 
@@ -435,7 +439,7 @@ save_custom_manager() {
     local check_exit_code="${19:-}"; local check_filter="${20:-}"; local check_timeout_fb="${21:-}"
     local post_update_msg_id="${22:-}"; local post_update_msg="${23:-}"
     local check_dep_bin="${24:-}"; local check_dep_cmd="${25:-}"
-    local probe_cmd="${26:-}"; local lock_file="${27:-}"
+    local probe_cmd="${26:-}"; local lock_file="${27:-}"; local stall_timeout="${28:-}"
 
     if [[ -z "$conf_file" ]]; then
         conf_file="$CUSTOM_DIR/${name// /_}.conf"
@@ -478,5 +482,6 @@ EOF
     echo "ENABLED=$enabled" >> "$conf_file"
     [[ -n "$probe_cmd" ]] && echo "PROBE_ACTIVE_CMD=$probe_cmd" >> "$conf_file"
     [[ -n "$lock_file" ]] && echo "LOCK_FILE=$lock_file" >> "$conf_file"
+    [[ -n "$stall_timeout" ]] && echo "STALL_TIMEOUT=$stall_timeout" >> "$conf_file"
     return 0
 }

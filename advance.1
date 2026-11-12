@@ -97,6 +97,9 @@ Clear all extra flags for the specified package manager for this run only (e.g. 
 .BR \-ex ", " \-\-exclude " \fIPACKAGE\fR"
 Exclude package from system package updates. Repeatable. Excluded packages are automatically mapped to the appropriate package manager flag (e.g. \fB\-\-ignore\fR for pacman/aur helpers, \fB\-\-exclude\fR for dnf, or temporary holds for apt).
 .TP
+.BR \-st ", " \-\-stall\-timeout " \fIDURATION\fR"
+Watchdog inactivity timeout before triggering a stalled-command alert (e.g. \fB180s\fR, \fB3m\fR, or \fB0\fR to disable). If an update command produces no output for this duration, Advance alerts the user with an audible bell and desktop notification, offering to Wait, Terminate & Escalate to error recovery, or Abort.
+.TP
 .BR \-i ", " \-\-interactive
 Force manual confirmation mode for all managers. Strips auto-confirm flags (\fBFLAGS_AUTO_CONFIRM\fR) and appends \fBFLAGS_INTERACTIVE\fR when configured. Overrides per-manager and global auto-confirm settings.
 .SS General Options
@@ -224,6 +227,8 @@ Optional user drop-in override files. Values defined here take precedence over c
 \fBPROBE_ACTIVE_CMD\fR: Optional command evaluated to verify active service or filesystem state before scheduling updates.
 .IP \(bu 2
 \fBLOCK_FILE\fR: Optional existence-based lock file path (e.g. \fB/var/lib/pacman/db.lck\fR). When an update fails and this file exists with no active process holding it (verified via \fBfuser\fR/\fBlsof\fR/\fBpgrep\fR), Advance offers a safe \fB[U]nlock\fR recovery choice.
+.IP \(bu 2
+\fBSTALL_TIMEOUT\fR: Inactivity timeout in seconds or duration (e.g. \fB180s\fR, \fB3m\fR). If output ceases for this duration, Advance alerts the user with an audible bell and interactive prompt to Wait, Terminate & Escalate, or Abort. Set to \fB0\fR to disable watchdog for this manager.
 .IP \(bu 2
 \fBENABLED\fR: Set to \fBtrue\fR or \fBfalse\fR.
 .RE

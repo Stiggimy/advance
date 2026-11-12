@@ -216,6 +216,7 @@ do_update() {
     local skip_groups=()
     declare -A cli_extra_flags=()
     declare -A cli_clear_extra_flags=()
+    local cli_stall_timeout=""
 
     # Scan for only-mode triggers
     for arg in "$@"; do
@@ -288,6 +289,14 @@ do_update() {
                     ui_error "Flag $1 requires a manager name."
                     exit 1
                 fi ;;
+            -st|--stall-timeout)
+                if [[ -n "$2" && "$2" != -* ]]; then
+                    cli_stall_timeout=$(parse_duration "$2")
+                    shift 2
+                else
+                    ui_error "Flag $1 requires a duration argument (e.g. 180s, 3m, 0 to disable)."
+                    exit 1
+                fi ;;
             -i|--interactive) is_interactive=true; shift ;;
             -v|--verbose|--debug) VERBOSE=true; shift ;;
             -V|--version)
@@ -343,6 +352,7 @@ EOF
                 print_help_entry "🚩" "$C_PURP" "-ef,   --extra-flag <mgr:flag>" "Append extra flag to manager for this run (repeatable)."
                 print_help_entry "🚫" "$C_RED"  "-nef,  --no-extra-flags <mgr>" "Clear extra flags for manager for this run (repeatable)."
                 print_help_entry "🚫" "$C_PURP" "-ex,   --exclude <pkg>" "Exclude package from system updates (repeatable)."
+                print_help_entry "⏱️" "$C_PURP" "-st,   --stall-timeout <dur>" "Watchdog inactivity timeout before stall prompt (e.g. 3m, 180s, 0)."
                 print_help_entry "🙋" "$C_PURP" "-i,    --interactive" "Force manual confirmation mode for all managers."
                 echo ""
                 echo -e "${C_BOLD}General:${C_RESET}"
@@ -730,7 +740,7 @@ EOF
             [[ "$force_del" == true ]] && snap_cmd+=" -f"
         fi
         [[ "$VERBOSE" == true ]] && snap_cmd+=" -v"
-        if run_with_retry "Pre-Snapshot" "checkpoint" "$snap_cmd"; then
+        if run_with_retry "Pre-Snapshot" "checkpoint" "$snap_cmd" "" "" "" "" "" "" "${cli_stall_timeout:-${STALL_TIMEOUT:-0}}"; then
             local clean_last
             clean_last=$(echo "$LAST_CMD_OUTPUT" | sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g')
             PRE_SNAPSHOT_ID=$(echo "$clean_last" | sed -n 's/.*Snapshot created: *\([^ ]*\).*/\1/p' | tail -n 1)
@@ -898,6 +908,7 @@ EOF
         local current_idx=$mgr_idx
         local lock_file="${CUSTOM_LOCK_FILES[$current_idx]}"
         local req_cmd="${CUSTOM_REQUIRES_CMDS[$current_idx]}"
+        local stall_timeout="${cli_stall_timeout:-${CUSTOM_STALL_TIMEOUTS[$current_idx]:-${STALL_TIMEOUT:-0}}}"
         local fb_pos=0
         local fb_chain
         fb_chain=($(get_fallback_chain "$mgr_idx"))
@@ -910,7 +921,7 @@ EOF
                 fallback_label="${CUSTOM_NAMES[$fb_idx]} (priority ${CUSTOM_PRIORITIES[$fb_idx]})"
             fi
 
-            run_with_retry "$name Update" "$name" "$cmd" "$flags_auto_confirm" "$flags_interactive" "$flags_override" "$fallback_label" "$lock_file" "$req_cmd"
+            run_with_retry "$name Update" "$name" "$cmd" "$flags_auto_confirm" "$flags_interactive" "$flags_override" "$fallback_label" "$lock_file" "$req_cmd" "$stall_timeout"
             local ret=$?
 
             if [[ $ret -eq 0 ]]; then
@@ -926,6 +937,7 @@ EOF
                     flags_override="${CUSTOM_FLAGS_OVERRIDES[$current_idx]}"
                     lock_file="${CUSTOM_LOCK_FILES[$current_idx]}"
                     req_cmd="${CUSTOM_REQUIRES_CMDS[$current_idx]}"
+                    stall_timeout="${cli_stall_timeout:-${CUSTOM_STALL_TIMEOUTS[$current_idx]:-${STALL_TIMEOUT:-0}}}"
 
                     # Rebuild command for fallback manager
                     cmd=$(build_manager_update_cmd "$current_idx")
@@ -954,7 +966,7 @@ EOF
         [[ "$do_clean" == false ]] && snap_cmd+=" -nc"
         [[ "$keep_post" == true ]] && snap_cmd+=" -ks"; [[ "$force_del" == true ]] && snap_cmd+=" -f"
         [[ "$VERBOSE" == true ]] && snap_cmd+=" -v"
-        run_with_retry "Post-Snapshot" "checkpoint" "$snap_cmd"
+        run_with_retry "Post-Snapshot" "checkpoint" "$snap_cmd" "" "" "" "" "" "" "${cli_stall_timeout:-${STALL_TIMEOUT:-0}}"
     fi
 
     # Post-update messages configured per manager plugin

@@ -121,7 +121,7 @@ process_imported_conf() {
     local check_exit_code="" check_filter="" check_timeout_fb=""
     local enabled="true" requires_cmd="" priority="0"
     local post_update_msg_id="" post_update_msg=""
-    local check_dep_bin="" check_dep_cmd="" probe_cmd="" lock_file=""
+    local check_dep_bin="" check_dep_cmd="" probe_cmd="" lock_file="" stall_timeout=""
     while IFS='=' read -r key value || [[ -n "$key" ]]; do
         [[ -z "$key" || "$key" == \#* ]] && continue
         key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
@@ -154,6 +154,7 @@ process_imported_conf() {
             PRIORITY) priority="$value" ;;
             PROBE_ACTIVE_CMD) probe_cmd="$value" ;;
             LOCK_FILE) lock_file="$value" ;;
+            STALL_TIMEOUT) stall_timeout="$value" ;;
         esac
     done < "$conf"
 
@@ -279,7 +280,7 @@ process_imported_conf() {
         "$check_exit_code" "$check_filter" "$check_timeout_fb" \
         "$post_update_msg_id" "$post_update_msg" \
         "$check_dep_bin" "$check_dep_cmd" \
-        "$probe_cmd" "$lock_file"
+        "$probe_cmd" "$lock_file" "$stall_timeout"
     ui_ok "Package manager '$name' imported successfully!"
 }
 
@@ -901,14 +902,17 @@ _edit_check_settings_menu() {
     done
 }
 
-# Interactive submenu for Advanced Manager Settings (Daemon probe, orphaned lock file, package hold/unhold, post-update messages)
-# Uses caller variables: name, probe_cmd, lock_file, exclude_hold_cmd, exclude_unhold_cmd, post_update_msg, post_update_msg_id
+# Interactive submenu for Advanced Manager Settings (Daemon probe, orphaned lock file, stalled timeout, package hold/unhold, post-update messages)
+# Uses caller variables: name, probe_cmd, lock_file, stall_timeout, exclude_hold_cmd, exclude_unhold_cmd, post_update_msg, post_update_msg_id
 # If $1 == "live", persists changes immediately via _save_current_mgr & _refresh_found
 _edit_advanced_settings_menu() {
     local mode="${1:-wizard}"
     while true; do
         local probe_disp="${probe_cmd:-(none)}"
         local lock_disp="${lock_file:-(none)}"
+        local stall_disp="${stall_timeout:-(follow global)}"
+        [[ "$stall_timeout" == "0" ]] && stall_disp="0s (disabled)"
+        [[ -n "$stall_timeout" && "$stall_timeout" =~ ^[0-9]+$ && "$stall_timeout" -gt 0 ]] && stall_disp="${stall_timeout}s"
         local hold_disp="${exclude_hold_cmd:-(none)}"
         local unhold_disp="${exclude_unhold_cmd:-(none)}"
         local msg_disp="${post_update_msg:-(none)}"
@@ -917,6 +921,7 @@ _edit_advanced_settings_menu() {
         local adv_menu=(
             "$(e 🔌)Runtime Service / Daemon Probe  (Currently: $probe_disp)"
             "$(e 🔐)Orphaned Lock File Path         (Currently: $lock_disp)"
+            "$(e ⏱️)Stalled-Command Timeout         (Currently: $stall_disp)"
             "$(e 🔒)Package Hold Command            (Currently: $hold_disp)"
             "$(e 🔓)Package Unhold Command          (Currently: $unhold_disp)"
             "$(e 📢)Post-Update Notification Msg    (Currently: $msg_disp)"
@@ -926,13 +931,15 @@ _edit_advanced_settings_menu() {
         )
 
         local a_pick
-        a_pick=$(printf "%s\n" "${adv_menu[@]}" | fzf --height 18 --reverse \
+        a_pick=$(printf "%s\n" "${adv_menu[@]}" | fzf --height 20 --reverse \
             --header "--- Advanced Engine Settings: $name ---" \
             --preview 'case "{}" in
                 *Runtime*Service*|*Daemon*Probe*)
                     echo -e "🔌 Runtime Daemon / Service Probe (PROBE_ACTIVE_CMD)\n────────────────────────────────────────────────\nCommand executed by Advance before checking or scheduling updates to verify that a background service or daemon is running.\n\n• If exit code is 0, Advance proceeds with the manager.\n• If non-zero, Advance considers the manager inactive and skips it.\n• Examples:\n    systemctl is-active --quiet docker\n    pgrep -x snapd\n    docker info" ;;
                 *Orphaned*Lock*|*Lock*File*)
                     echo -e "🔐 Orphaned Lock File Path (LOCK_FILE)\n──────────────────────────────────────\nOptional path to an existence-based lock file used by this package manager.\n\n• If an update fails and this file exists, Advance verifies via fuser, lsof, and pgrep whether any process is actively using it.\n• If verified as a stale/orphaned lock (e.g. after a crash or power cut), Advance offers a safe [U] Unlock option in the error recovery menu to remove it and retry.\n• Example:\n    /var/lib/pacman/db.lck" ;;
+                *Stalled*Timeout*|*STALL_TIMEOUT*)
+                    echo -e "⏱️ Stalled-Command Inactivity Timeout (STALL_TIMEOUT)\n────────────────────────────────────────────────────\nTime in seconds of absolute command inactivity (no output produced) before Advance triggers a stall alert.\n\n• If output stops streaming for this duration, Advance alerts you with an audible bell, desktop notification, and an interactive prompt:\n    [W] Wait (extend time) | [T] Terminate & Escalate | [A] Abort\n• Helps recover automatically or interactively from hung mirrors, stuck downloads, or frozen transactions.\n• Values:\n    • Number in seconds (e.g. 180, 300) or duration (e.g. 3m, 5m)\n    • 0 to disable watchdog for this manager\n    • '\''none'\'' or '\''clear'\'' to follow global setting\n• Example:\n    180" ;;
                 *Package*Hold*Command*)
                     echo -e "🔒 Package Hold Command (EXCLUDE_HOLD_CMD)\n──────────────────────────────────────────\nCommand template used to temporarily lock or hold packages from updates.\n\n• Package name is appended to the command.\n• Examples:\n    sudo apt-mark hold\n    pacman -D --asdeps" ;;
                 *Package*Unhold*Command*)
@@ -975,6 +982,31 @@ _edit_advanced_settings_menu() {
                 lock_file="$r_lk"
                 if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
                 ui_ok "Orphaned lock file path updated."
+            fi
+        elif [[ "$a_pick" == *"Stalled-Command Timeout"* ]]; then
+            echo "Enter inactivity timeout in seconds (e.g. '180', '3m', '0' to disable, 'none' to follow global):"
+            echo -n "Stalled Timeout [current: $stall_disp]: "
+            local r_st
+            read -r r_st
+            r_st=$(trim "$r_st")
+            if [[ "$r_st" == "none" || "$r_st" == "-" || "$r_st" == "clear" || "$r_st" == "default" ]]; then
+                stall_timeout=""
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Stalled timeout reset to follow global setting."
+            elif [[ "$r_st" == "0" || "$r_st" == "off" || "$r_st" == "disable"* ]]; then
+                stall_timeout="0"
+                if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                ui_ok "Stalled timeout disabled (0s) for this manager."
+            elif [[ -n "$r_st" ]]; then
+                local parsed_st
+                parsed_st=$(parse_duration "$r_st")
+                if [[ "$parsed_st" =~ ^[0-9]+$ && "$parsed_st" -ge 0 ]]; then
+                    stall_timeout="$parsed_st"
+                    if [[ "$mode" == "live" ]]; then _save_current_mgr; _refresh_found; fi
+                    ui_ok "Stalled timeout updated to ${stall_timeout}s."
+                else
+                    ui_warn "Invalid duration format. Example: 180s, 3m, 300."
+                fi
             fi
         elif [[ "$a_pick" == *"Package Hold Command"* ]]; then
             echo "Enter package hold command (e.g. 'sudo apt-mark hold', 'none' to clear):"
@@ -1148,7 +1180,8 @@ _save_mgr_by_idx() {
         "${CUSTOM_CHECK_DEP_BINS[$idx]}" \
         "${CUSTOM_CHECK_DEP_INSTALLS[$idx]}" \
         "${CUSTOM_PROBE_ACTIVE_CMDS[$idx]}" \
-        "${CUSTOM_LOCK_FILES[$idx]}"
+        "${CUSTOM_LOCK_FILES[$idx]}" \
+        "${CUSTOM_STALL_TIMEOUTS[$idx]}"
 }
 
 # Renumbers an ordered list of manager indices in clean descending multiples of 10 (N*10 ... 20, 10)
@@ -1865,6 +1898,7 @@ manage_custom_managers_menu() {
             local check_dep_cmd=""
             local probe_cmd=""
             local lock_file=""
+            local stall_timeout=""
 
             while true; do
                 local cf_summary="${flags_auto_confirm:-(none)}"
@@ -1888,7 +1922,7 @@ manage_custom_managers_menu() {
                     "$(e 🌈)Color Flag:               ${color_flag:-(none)}"
                     "$(e 💥)File Conflict Override:   ${flags_override:-(none)}"
                     "$(e 🚫)Package Exclude Flag:     ${exclude_flag:-(none)} [join: ${exclude_join:-,}]"
-                    "$(e ⚙️)Advanced Engine Settings... (Probe, Lock, Hold/Unhold, Post-Msg)"
+                    "$(e ⚙️)Advanced Engine Settings... (Probe, Lock, Timeout, Hold/Unhold, Post-Msg)"
                     "---"
                     "$(e ❌)Cancel"
                 )
@@ -1921,6 +1955,7 @@ manage_custom_managers_menu() {
 
 ── Exclusions & Engine ──
   Lock File:     ${lock_file:-(none)}
+  Stall Timeout: ${stall_timeout:-(follow global)}
   Exclude Flag:  ${exclude_flag:-(none)}
   Join Mode:     ${exclude_join:-,}
   Hold Cmd:      ${exclude_hold_cmd:-(none)}
@@ -1946,7 +1981,7 @@ PREV_EOF
                         "$exclude_flag" "$exclude_join" "$exclude_hold_cmd" "$exclude_unhold_cmd" \
                         "$check_exit_code" "$check_filter" "$check_timeout_fb" \
                         "$post_update_msg_id" "$post_update_msg" \
-                        "$check_dep_bin" "$check_dep_cmd" "$probe_cmd" "$lock_file"
+                        "$check_dep_bin" "$check_dep_cmd" "$probe_cmd" "$lock_file" "$stall_timeout"
 
                     load_custom_managers
                     if [[ -n "$target_group" ]]; then
@@ -2169,6 +2204,7 @@ PREV_EOF
             local group="${CUSTOM_GROUPS[$found]}"
             local probe_cmd="${CUSTOM_PROBE_ACTIVE_CMDS[$found]}"
             local lock_file="${CUSTOM_LOCK_FILES[$found]}"
+            local stall_timeout="${CUSTOM_STALL_TIMEOUTS[$found]}"
 
             local status_str="Enabled"
             [[ "$enabled" != "true" ]] && status_str="Disabled"
@@ -2193,7 +2229,7 @@ PREV_EOF
                     "$check_exit_code" "$check_filter" "$check_timeout_fb" \
                     "$post_update_msg_id" "$post_update_msg" \
                     "$check_dep_bin" "$check_dep_cmd" \
-                    "$probe_cmd" "$lock_file"
+                    "$probe_cmd" "$lock_file" "$stall_timeout"
             }
 
             _refresh_found() {
@@ -2217,7 +2253,7 @@ PREV_EOF
                 "$(e 🔎)Configure Check Updates (Currently: ${check_cmd:-(Always Runs)})"
                 "$(e 🚀)Set Update Command"
                 "$(e 🚩)Set Flags & Extras"
-                "$(e ⚙️)Advanced Engine Settings (Probe, Lock, Hold/Unhold, Post-Msg)"
+                "$(e ⚙️)Advanced Engine Settings (Probe, Lock, Timeout, Hold/Unhold, Post-Msg)"
                 "$(e 🏷️)Rename Manager"
                 "$(e 🗑️)Delete Manager"
                 "---"
@@ -2252,6 +2288,7 @@ PREV_EOF
 
 ── Exclusions & Engine ──
   Lock File:     ${lock_file:-(none)}
+  Stall Timeout: ${stall_timeout:-(follow global)}
   Flag:          ${exclude_flag:-(none)}
   Join:          ${exclude_join:-(none)}
   Hold Cmd:      ${exclude_hold_cmd:-(none)}
@@ -2790,9 +2827,12 @@ _menu_execution() {
         local s_inf="[OFF]"; [[ "$INFINITE_RETRIES" == true ]] && s_inf="[ON ]"
         local s_ret="[$AUTO_RETRIES]"
         local s_upd="[${SELF_UPDATE_CHECK^^}]"
+        local s_stall="[OFF]"
+        [[ -n "$STALL_TIMEOUT" && "$STALL_TIMEOUT" =~ ^[0-9]+$ && "$STALL_TIMEOUT" -gt 0 ]] && s_stall="[${STALL_TIMEOUT}s]"
 
         local opt=(
             "$(e 🤖)Global Auto-Confirm        $s_ac"
+            "$(e ⏱️)Stalled-Command Watchdog   $s_stall"
             "$(e 🔟)Auto-Retries Limit         $s_ret"
             "$(e ♾️)Infinite Retries Mode      $s_inf"
             "$(e 🔄)Self-Update Check          $s_upd"
@@ -2809,6 +2849,8 @@ _menu_execution() {
             --preview 'case "{}" in
                 *Global*Auto-Confirm*)
                     echo -e "🤖 Global Auto-Confirm\n──────────────────────\nWhen enabled, Advance automatically appends auto-confirm flags (e.g. --noconfirm, -y) to update commands for all managers set to \"Follow global\".\n\nWhen disabled, managers will prompt you interactively unless their per-manager setting is \"ON unless forced\".\n\nDefault: true (seamless updates)" ;;
+                *Stalled-Command*|*Watchdog*)
+                    echo -e "⏱️ Stalled-Command Inactivity Watchdog\n──────────────────────────────────────\nMonitors running update commands for output activity and triggers a stall alert if no output is produced for this timeframe.\n\nWhy use this?\nIf a package manager freezes due to an unreachable mirror, hung TCP connection, or silent prompt, Advance will detect the stall and alert you with an audible bell and desktop notification, offering to Wait, Terminate & Escalate, or Abort.\n\nValues:\n• 0 or off: Disabled by default (commands run indefinitely until completion or Ctrl+C)\n• Duration: 180s, 3m, 300s (alerts if no output is produced for this duration)\n\nNote: Individual managers can override this in their Advanced Engine Settings.\n\nDefault: 0 (disabled)" ;;
                 *Auto-Retries*)
                     echo -e "🔟 Auto-Retries Limit\n─────────────────────\nHow many times Advance silently retries a failed command before stopping to ask you what to do.\n\nWhy use this?\nGreat for handling brief network glitches or mirror timeouts during package downloads without stopping.\n\nValues:\n• 0: Stop and ask immediately on error\n• 1, 2, 3...: Retry up to N times before asking\n\nDefault: 1" ;;
                 *Infinite*)
@@ -2829,6 +2871,29 @@ _menu_execution() {
         case "$choice" in
             *"Global Auto-Confirm"*)
                 [[ "$AUTO_CONFIRM" != false ]] && AUTO_CONFIRM=false || AUTO_CONFIRM=true ;;
+            *"Stalled-Command Watchdog"*)
+                local cur_st_disp="0 (disabled)"
+                [[ -n "$STALL_TIMEOUT" && "$STALL_TIMEOUT" =~ ^[0-9]+$ && "$STALL_TIMEOUT" -gt 0 ]] && cur_st_disp="${STALL_TIMEOUT}s"
+                echo "Enter default inactivity timeout (e.g. 180s, 3m, 0 to disable) [current: $cur_st_disp]:"
+                local input_st
+                read -r input_st
+                input_st=$(trim "$input_st")
+                if [[ "$input_st" == "0" || "$input_st" == "off" || "$input_st" == "disable"* ]]; then
+                    STALL_TIMEOUT=0
+                    save_config
+                    ui_ok "Default stalled-command watchdog disabled."
+                elif [[ -n "$input_st" ]]; then
+                    local parsed_st
+                    parsed_st=$(parse_duration "$input_st")
+                    if [[ "$parsed_st" =~ ^[0-9]+$ ]]; then
+                        STALL_TIMEOUT="$parsed_st"
+                        save_config
+                        ui_ok "Default stalled-command watchdog set to ${STALL_TIMEOUT}s."
+                    else
+                        ui_warn "Invalid duration format. Example: 180s, 3m, 300."
+                    fi
+                fi
+                ;;
             *"Auto-Retries Limit"*)
                 local input_retries
                 read -p "Enter retry limit (0 for always ask, current: $AUTO_RETRIES): " input_retries
