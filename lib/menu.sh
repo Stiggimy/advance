@@ -1465,10 +1465,13 @@ manage_custom_managers_menu() {
 
         local bind_args=()
         [[ $last_idx -gt 0 ]] && bind_args=(--bind "start:pos($((last_idx + 1)))")
+        # ctrl-up/ctrl-down are only known to newer fzf; older ones (e.g. 0.60) abort with "unsupported key"
+        local expect_keys="alt-up,alt-down"
+        echo | fzf --filter '' --expect=ctrl-up,ctrl-down >/dev/null 2>&1 && expect_keys+=",ctrl-up,ctrl-down"
         local fzf_out
         fzf_out=$(printf "%s\n" "${opt[@]}" | fzf --height 22 --reverse "${bind_args[@]}" \
             --delimiter=$'\t' --with-nth=1 \
-            --expect=alt-up,alt-down,ctrl-up,ctrl-down \
+            --expect="$expect_keys" \
             --header "--- Package Managers & Execution Order (Alt+Up/Down: Reorder | Enter: Configure) ---" \
             --preview 'case "{2}" in
                 action:scan)
