@@ -3168,63 +3168,66 @@ self_update() {
         ui_info "This copy of Advance was installed by a package manager; update it with your system package manager instead."
         return 1
     fi
-    if declare -f check_connectivity >/dev/null 2>&1; then
-        if ! check_connectivity; then
-            ui_error "No active internet connection. Cannot perform self-update."
-            return 1
-        fi
-    fi
-
+    # Let Git test its configured destination and transport directly. General
+    # connectivity probes can fail even when the repository is reachable.
+    local install_pending="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.install-pending"
     local old_ver="$VERSION"
     local old_commit
-    old_commit=$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null || true)
-
+    if ! old_commit=$(git -C "$SOURCE_DIR" rev-parse --verify HEAD 2>/dev/null); then
+        ui_error "Self-update requires a Git checkout with a valid commit."
+        return 1
+    fi
     (
         cd "$SOURCE_DIR" || exit 1
-        if git remote | grep -qx 'origin'; then
-            local orig_url
-            orig_url=$(git remote get-url origin 2>/dev/null || true)
-            if [[ (-d ".agents" || -d ".gemini") && "$orig_url" =~ ^(.*github\.com[:/][^/]+/advance)(\.git)?$ ]]; then
-                local base_url="${BASH_REMATCH[1]}"
-                git remote get-url public >/dev/null 2>&1 || git remote add public "${base_url}.git" 2>/dev/null || true
-                git remote set-url origin "${base_url}-dev.git"
-                git fetch origin --prune >/dev/null 2>&1 || true
-            fi
-            ui_info "Checking for updates..."
-            local branch
-            branch=$(git branch --show-current 2>/dev/null)
-            branch=${branch:-master}
-            local pull_out
-            if ! pull_out=$(git -c advice.diverging=false pull --ff-only origin "$branch" 2>&1); then
-                local clean_err
-                clean_err=$(echo "$pull_out" | grep -vE '^[[:space:]]*hint:' | tail -n 2 | paste -sd '; ' -)
-                ui_error "Pull failed: ${clean_err:-unknown git error}. Aborting self-update."
-                exit 1
-            fi
-            if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
-                git branch --set-upstream-to="origin/$branch" "$branch" >/dev/null 2>&1 || true
-            fi
-        else
-            ui_info "Local source only."
+        local branch
+        if ! branch=$(git symbolic-ref --quiet --short HEAD); then
+            ui_error "Self-update cannot update a detached HEAD. Switch to the branch you want to update first."
+            exit 1
+        fi
+        if ! git diff --quiet HEAD --; then
+            ui_error "Self-update stopped: uncommitted tracked changes exist. Commit or stash your changes, then retry."
+            exit 1
+        fi
+        if ! git remote get-url origin >/dev/null 2>&1; then
+            ui_error "Self-update requires a configured origin remote. No remote was changed."
+            exit 1
+        fi
+        ui_info "Checking for updates in $SOURCE_DIR (origin/$branch)..."
+        _self_update_git -c advice.diverging=false pull --progress --ff-only origin "$branch" || exit $?
+        if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+            git branch --set-upstream-to="origin/$branch" "$branch" >/dev/null 2>&1 || true
         fi
         local cur_commit
         cur_commit=$(git rev-parse HEAD 2>/dev/null || true)
-        if [[ -n "$old_commit" && "$old_commit" == "$cur_commit" ]]; then
+        if [[ -n "$old_commit" && "$old_commit" == "$cur_commit" && ! -f "$install_pending" ]]; then
             exit 10
         fi
-        ./install.sh --quiet
+        if [[ "$old_commit" == "$cur_commit" ]]; then
+            ui_info "Retrying pending installation..."
+        fi
+        if ! mkdir -p "$(dirname "$install_pending")" || ! printf '%s\n' "$cur_commit" > "$install_pending"; then
+            ui_error "Cannot record pending installation. Self-update stopped before running the installer."
+            exit 1
+        fi
+        local install_status=0
+        ./install.sh --quiet || install_status=$?
+        if [[ "$install_status" -ne 0 ]]; then
+            ui_error "Git update completed, but installation failed. Retry self-update to finish installation."
+            exit "$install_status"
+        fi
+        if ! rm -f "$install_pending"; then
+            ui_error "Installation completed, but pending-install state could not be cleared."
+            exit 1
+        fi
     )
     local sub_code=$?
     if [[ $sub_code -eq 10 ]]; then
         ui_ok "Advance is already up to date (v$VERSION)."
         rm -f "${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
-        if command -v checkpoint >/dev/null 2>&1; then
-            echo ""
-            checkpoint self-update || true
-        fi
-        return 0
+        _self_update_companion
+        return $?
     elif [[ $sub_code -ne 0 ]]; then
-        return 1
+        return "$sub_code"
     fi
 
     local new_commit
@@ -3243,11 +3246,20 @@ self_update() {
     fi
     rm -f "${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
 
-    if command -v checkpoint >/dev/null 2>&1; then
-        echo ""
-        ui_info "Updating companion tool (checkpoint)..."
-        checkpoint self-update || ui_warn "Checkpoint self-update failed."
+    _self_update_companion
+}
+
+_self_update_companion() {
+    if ! command -v checkpoint >/dev/null 2>&1; then
+        return 0
     fi
+    echo ""
+    ui_info "Updating companion tool (checkpoint)..."
+    if ! checkpoint self-update; then
+        ui_error "Advance is up to date, but Checkpoint self-update failed. Retry with: checkpoint self-update"
+        return 1
+    fi
+    return 0
 }
 
 manage_schedule() {

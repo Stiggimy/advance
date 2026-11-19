@@ -37,6 +37,7 @@ Within each group, managers must have distinct priority values. Groups execute i
 .TP
 .BR \-ch ", " \-\-check
 Check for available updates across all active sources without installing them. Displays update counts and package totals. When combined with \fB\-v\fR/\fB\-\-verbose\fR, displays the list of upgradable packages for each source. Does not require sudo privileges.
+The default Apt recipe displays “Always runs”. A normal update refreshes the package lists before upgrading.
 .SS Target Selection
 Specifying any target flag activates "only-mode", disabling all unselected managers and snapshot phases unless explicitly requested.
 .TP
@@ -236,3 +237,20 @@ Optional user drop-in override files. Values defined here take precedence over c
 .BR checkpoint (1),
 .BR snapper (8),
 .BR timeshift (1)
+
+.SH SELF-UPDATE
+For per-user public installations, the standalone bootstrap.sh installer can also repair an interrupted installation or bypass an older updater. Download it from the public Advance repository and run it with bash. It reuses the linked public master checkout and runs install.sh even when the checkout is current.
+.PP
+Self-update pulls the current branch from the configured origin without rewriting remote URLs. It displays the source checkout and origin branch before pulling. Public repositories do not require GitHub CLI or login; private repositories require Git authentication.
+.PP
+Git operations show progress and time out after 30 seconds. Set SELF_UPDATE_TIMEOUT (for example, 120s) to adjust this limit. Failed pulls abort before installation. Package-managed installations should be updated through their package manager.
+
+.PP
+Self-update checks connectivity through Git itself. Authentication failures retain Git output and include guidance for configured HTTPS credentials or SSH access.
+If Checkpoint fails to update, Advance returns a failure status and shows a command to retry the companion update.
+
+.PP
+Self-update requires an attached branch, a valid commit, a configured origin, and no staged or unstaged tracked changes. Commit or stash local tracked changes before updating. Untracked files are preserved; Git refuses incoming changes that would overwrite them. Ctrl+C cancels Git and its helper processes.
+
+.PP
+If installation fails after a successful Git pull, rerun self-update to retry installation. Pending installation state is retained in the application cache until installation succeeds.

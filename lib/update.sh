@@ -625,7 +625,7 @@ EOF
         echo -e "${C_BOLD}>>> Update Check Summary:${C_RESET}"
         echo "──────────────────────────────────"
         local total_pkgs=0
-        local managers_with_updates=0
+        local scheduled_sources=0
         for ((i=0; i<${#CUSTOM_NAMES[@]}; i++)); do
             [[ "${run_custom[$i]}" != true ]] && continue
             local name="${CUSTOM_NAMES[$i]}"
@@ -633,7 +633,7 @@ EOF
             [[ -z "$emoji" ]] && emoji="📦"
             local out="${custom_check_output[$i]}"
             if [[ "${custom_has_updates[$i]}" == true ]]; then
-                ((managers_with_updates++))
+                ((scheduled_sources++))
                 if [[ -z "${CUSTOM_CHECKS[$i]}" ]]; then
                     printf "  $(e $emoji)%-12s %b\n" "$name:" "${C_YELLOW}Always runs${C_RESET}"
                 else
@@ -654,8 +654,8 @@ EOF
         done
         echo "──────────────────────────────────"
         if [[ "$any" == true ]]; then
-            local summary="${C_YELLOW}${C_BOLD}${managers_with_updates} source(s) with updates"
-            [[ $total_pkgs -gt 0 ]] && summary+=", ${total_pkgs} package(s) total"
+            local summary="${C_YELLOW}${C_BOLD}${scheduled_sources} source(s) scheduled to run"
+            [[ $total_pkgs -gt 0 ]] && summary+=", ${total_pkgs} known package update(s)"
             summary+=".${C_RESET}"
             echo -e "  $summary"
             echo -e "  Run ${C_GREEN}advance${C_RESET} to apply."

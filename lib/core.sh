@@ -695,3 +695,28 @@ check_for_tool_updates() {
     fi
     return 0
 }
+
+# Keep explicit updates observable and bounded, including credential helpers and SSH.
+_self_update_git() (
+    local limit="${SELF_UPDATE_TIMEOUT:-30s}"
+    local status=0
+    if ! command -v timeout >/dev/null 2>&1; then
+        ui_error "Self-update requires the coreutils timeout command."
+        return 1
+    fi
+    local git_pid
+    GIT_TERMINAL_PROMPT=0 timeout --kill-after=5s "$limit" git "$@" &
+    git_pid=$!
+    # timeout uses a separate process group. Forward terminal cancellation to
+    # its supervisor so Git and any credential-helper children are stopped.
+    trap 'kill -TERM "$git_pid" 2>/dev/null || true; wait "$git_pid" 2>/dev/null || true; ui_error "Self-update cancelled."; exit 130' INT
+    trap 'kill -TERM "$git_pid" 2>/dev/null || true; wait "$git_pid" 2>/dev/null || true; exit 143' TERM
+    wait "$git_pid" || status=$?
+    if [[ "$status" -eq 124 || "$status" -eq 137 ]]; then
+        ui_error "Self-update Git operation timed out after $limit. The remote connection or a credential helper may be stalled. Check Git access to this repository, then retry."
+    elif [[ "$status" -ne 0 ]]; then
+        ui_error "Self-update Git operation failed (exit $status). See Git output above."
+        ui_info "For authentication errors, check the configured HTTPS credentials or SSH access. Public repositories do not require GitHub CLI or login."
+    fi
+    return "$status"
+)

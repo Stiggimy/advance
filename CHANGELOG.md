@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
 - **Native Windows Port (Far Future)**: Support native Windows environments and package managers (Winget, Scoop, Chocolatey) alongside Linux/WSL.
 
+## [0.13.1] — 2026-11-19
+
+### Added
+- A standalone public installer supports first-time installation and repair when an older updater cannot finish.
+
+### Fixed
+- Apt now refreshes package lists on each normal update, including on Debian systems with stale indexes. Check-only runs report Apt as “Always runs”.
+- **Incomplete Self-Update Installation Recovery**: Remember a failed installation after a successful Git pull and retry it on the next self-update, instead of incorrectly treating the update as complete.
+- **Self-Update Cancellation and Local Work Protection**: Ctrl+C stops Git and its helper processes promptly. Self-update refuses detached HEADs, uncommitted tracked changes, missing origin, and invalid Git checkouts before pulling; failures retain their exit status.
+- **Self-Update Connectivity and Authentication Errors**: Test the configured Git destination directly instead of unrelated connectivity probes; show Git errors and authentication guidance, and bound waits on connections or credential helpers.
+- **Companion Update Failure Reporting**: Return a failure status and show a Checkpoint retry command when its update fails, including when Advance is already current.
+- **Self-Update Source Preservation**: Self-update keeps the configured origin unchanged, even when agent configuration directories exist, and shows the source checkout and origin branch before pulling.
+
 ## [0.13.0] — 2026-11-12
 
 ### Fixed

@@ -89,7 +89,19 @@ ENABLED=true
 
 ### Recommended
 
-Clone the repository and run the installer:
+For a per-user Linux install, download the public installer and run it as your usual user:
+
+```bash
+curl -fsSL --max-time 30 https://raw.githubusercontent.com/Stiggimy/advance/master/bootstrap.sh -o advance-bootstrap.sh && bash advance-bootstrap.sh
+```
+
+New installations keep their checkout in `$ADVANCE_DATA_DIR/source` (default `~/.local/share/advance/source`). Run `advance -U` for routine updates. If an old updater hangs, or installation was interrupted, run the download command again. It fast-forwards a clean public `master` checkout, including one linked from an earlier clone, then reruns the installer even if Git is already current. Git downloads default to a 30-second timeout. Set `SELF_UPDATE_TIMEOUT=120s` for a slower connection.
+
+If the installer reports an unexpected origin, inspect the linked checkout with `git -C /path/to/checkout remote -v`. Older releases could change the public origin to `advance-dev.git` when a checkout contained `.agents` or `.gemini`. **Only if this checkout should track public releases**, restore the URL with `git -C /path/to/checkout remote set-url origin https://github.com/Stiggimy/advance.git` and retry. For a private checkout, use its configured upstream and run its own `./install.sh`.
+
+### Manual Git install
+
+To choose the checkout location yourself:
 
 ```bash
 git clone https://github.com/Stiggimy/advance.git
@@ -100,6 +112,18 @@ cd advance
 The installer automatically creates symlinks, deploys the man page, and enrolls detected package managers from the official catalog.
 
 > **Tip:** Install [`checkpoint`](https://github.com/Stiggimy/checkpoint) alongside Advance for automated snapshot support.
+
+### Manual recovery from an older updater
+
+If you installed from a public Git clone and `advance -U` hangs or fails, press Ctrl+C to close it. In your existing Advance checkout, on a clean `master` branch, run:
+
+```bash
+GIT_TERMINAL_PROMPT=0 timeout -k 2s 30s git -c credential.helper= pull --ff-only https://github.com/Stiggimy/advance.git master &&
+  ./install.sh &&
+  "$HOME/.local/bin/advance" --version
+```
+
+The command pulls directly from the public repository and keeps your configured remote and user settings. If Git reports local changes or diverged history, save your work and review the checkout before retrying. For a package-managed install, use the same package source you installed from.
 
 ### Arch Linux (PKGBUILD)
 
@@ -186,6 +210,8 @@ advance -ch -v          # Check for updates and list available packages
 advance changelog       # Browse interactive release notes and changelog
 ```
 
+The default Apt recipe shows **Always runs** in `--check`. A normal update refreshes the package lists before upgrading. The check-only package total includes only managers that reported packages.
+
 ### Target Selection
 ```bash
 advance -o yay                   # Only run Yay
@@ -218,6 +244,10 @@ advance selfupdate                  # Pull latest git changes and reinstall
 ```
 
 ---
+
+Self-update pulls the current branch from the configured `origin` and never rewrites remotes based on agent configuration directories. It displays the source checkout and origin branch before pulling. Public Git installs do not require GitHub CLI or login; private repositories require working Git authentication. Self-update requires an attached branch, a configured `origin`, and no staged or unstaged tracked changes. It preserves untracked files; Git can still refuse a pull if incoming files would overwrite them. Ctrl+C cancels the Git operation and its helper processes.
+
+Self-update shows Git progress and stops each Git network operation after 30 seconds. Terminal credential prompts are disabled; configure Git authentication before retrying if access fails. For slower connections, set `SELF_UPDATE_TIMEOUT=120s` when running self-update. A timeout or Git error aborts the update before installation. If the installer fails after a successful pull, run self-update again to retry installation; pending state is retained in the application cache until installation succeeds. If the companion Checkpoint update fails, Advance reports partial success, returns a failure status, and shows a retry command. Self-update tests its configured Git destination directly; authentication errors include guidance for HTTPS credentials or SSH access.
 
 ## Documentation
 
