@@ -87,15 +87,27 @@ ENABLED=true
 
 ## Installation
 
-### Recommended
+### Recommended (One-Line Public Installer)
 
-For a per-user Linux install, download the public installer and run it as your usual user:
+Install Advance (and optionally its companion snapshot manager Checkpoint) requiring only standard tools (`bash`, `tar`, and `curl` or `wget` — no `git` or `gh` needed):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Stiggimy/advance/master/bootstrap.sh | bash
+```
+
+To install both Advance and Checkpoint non-interactively in a single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Stiggimy/advance/master/bootstrap.sh | bash -s -- --with-checkpoint
+```
+
+Or download and inspect the installer first:
 
 ```bash
 curl -fsSL --max-time 30 https://raw.githubusercontent.com/Stiggimy/advance/master/bootstrap.sh -o advance-bootstrap.sh && bash advance-bootstrap.sh
 ```
 
-New installations keep their checkout in `$ADVANCE_DATA_DIR/source` (default `~/.local/share/advance/source`). Run `advance -U` for routine updates. If an old updater hangs, or installation was interrupted, run the download command again. It fast-forwards a clean public `master` checkout, including one linked from an earlier clone, then reruns the installer even if Git is already current. Git downloads default to a 30-second timeout. Set `SELF_UPDATE_TIMEOUT=120s` for a slower connection.
+New installations keep their source files in `$ADVANCE_DATA_DIR/source` (default `~/.local/share/advance/source`). Run `advance -U` for routine updates (zero-dependency tarball updates for public installs, or fast-forward `git pull` for `.git` checkouts; add `--repair` to force repairing symlinks/man pages). If an old updater hangs, or installation was interrupted, run the bootstrap command again. Downloads default to a 30-second timeout; set `SELF_UPDATE_TIMEOUT=120s` for slower connections. Pass `--no-checkpoint` to skip the interactive companion prompt.
 
 If the installer reports an unexpected origin, inspect the linked checkout with `git -C /path/to/checkout remote -v`. Older releases could change the public origin to `advance-dev.git` when a checkout contained `.agents` or `.gemini`. **Only if this checkout should track public releases**, restore the URL with `git -C /path/to/checkout remote set-url origin https://github.com/Stiggimy/advance.git` and retry. For a private checkout, use its configured upstream and run its own `./install.sh`.
 
@@ -197,7 +209,7 @@ advance [OPTIONS] [SUBCOMMAND]
 | `-st, --stall-timeout <dur>` | Watchdog inactivity timeout before stall prompt (e.g. 3m, 180s, 0) |
 | `-i, --interactive` | Force manual confirmation mode for all managers |
 | `-c, --changelog [ver]` | View release notes or open interactive FZF version browser |
-| `-U, --self-update, --selfupdate` | Pull latest git changes and reinstall the tool suite |
+| `-U, --self-update, --selfupdate` | Pull latest git changes and reinstall the tool suite (`--repair` to repair install) |
 | `-v, --verbose, --debug` | Enable detailed debug logging |
 | `-V, --version` | Print version and build number, then exit |
 | `-h, --help` | Display command usage and option summary |
@@ -239,15 +251,38 @@ advance config import <file|url>    # Import manager configs
 advance catalog                     # Official recipe catalog (list, scan, enroll, remove)
 advance catalog scan                # Auto-detect and enroll installed package managers
 advance schedule                    # Setup background auto-update timers
-advance self-update                 # Pull latest git changes and reinstall (alias: selfupdate, -U)
-advance selfupdate                  # Pull latest git changes and reinstall
+advance self-update [--repair]      # Update tool suite (or repair per-user install)
+advance selfupdate                  # Alias for self-update
+advance uninstall [OPTIONS]         # Remove per-user Advance installation
 ```
+
+### Uninstallation
+
+Remove a per-user Advance installation safely at any time:
+
+```bash
+advance uninstall
+```
+
+Or directly from a repository checkout:
+
+```bash
+./uninstall.sh
+```
+
+Useful flags:
+- `--dry-run`: Preview everything that would be removed without changing files.
+- `--keep-config`: Preserve `~/.config/advance` (including custom managers and overrides) without prompting.
+- `--purge`: Also remove `~/.config/advance` and `~/.local/state/advance`.
+- `-y, --yes`: Skip confirmation prompts (preserves config unless `--purge` is passed).
+
+System packages, snapshots, and any external repository checkouts are never modified. Disabled user systemd auto-update timers (`advance-update.timer`), if configured, are automatically cleaned up.
 
 ---
 
-Self-update pulls the current branch from the configured `origin` and never rewrites remotes based on agent configuration directories. It displays the source checkout and origin branch before pulling. Public Git installs do not require GitHub CLI or login; private repositories require working Git authentication. Self-update requires an attached branch, a configured `origin`, and no staged or unstaged tracked changes. It preserves untracked files; Git can still refuse a pull if incoming files would overwrite them. Ctrl+C cancels the Git operation and its helper processes.
+Public installations created with `bootstrap.sh` update automatically using only `curl`/`wget` and `tar` (no `git` or `gh` required). Git checkouts pull the current branch from the configured `origin` without rewriting remotes; public HTTPS clones bypass local credential helpers automatically so stalled helpers (such as GitHub CLI) cannot block updates, while private checkouts use configured HTTPS credentials or non-interactive SSH. Self-update serializes runs with `flock`, offers an interactive auto-stash prompt for uncommitted tracked changes in Git checkouts, and cancels cleanly on Ctrl+C.
 
-Self-update shows Git progress and stops each Git network operation after 30 seconds. Terminal credential prompts are disabled; configure Git authentication before retrying if access fails. For slower connections, set `SELF_UPDATE_TIMEOUT=120s` when running self-update. A timeout or Git error aborts the update before installation. If the installer fails after a successful pull, run self-update again to retry installation; pending state is retained in the application cache until installation succeeds. If the companion Checkpoint update fails, Advance reports partial success, returns a failure status, and shows a retry command. Self-update tests its configured Git destination directly; authentication errors include guidance for HTTPS credentials or SSH access.
+Network operations time out after 30 seconds by default (`SELF_UPDATE_TIMEOUT=120s` for slower connections). If installation fails after downloading, or if installed symlinks/man pages are missing, `advance self-update` (or `advance self-update --repair`) automatically repairs the installation. If the companion Checkpoint update fails, Advance reports partial success, returns a failure status, and shows a retry command.
 
 ## Documentation
 

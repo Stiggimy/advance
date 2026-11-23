@@ -181,14 +181,26 @@ do_update() {
         else manage_config; return 0; fi
     fi
     if [[ "$1" == "self-update" || "$1" == "selfupdate" || "$1" == "-U" || "$1" == "--self-update" || "$1" == "--selfupdate" ]]; then
-        ensure_menu_loaded; self_update; return $?;
+        shift
+        ensure_menu_loaded; self_update "$@"; return $?;
+    fi
+    if [[ "$1" == "uninstall" ]]; then
+        shift
+        detect_source_dir
+        if [[ -x "$SOURCE_DIR/uninstall.sh" ]]; then
+            exec "$SOURCE_DIR/uninstall.sh" "$@"
+        else
+            ui_error "No uninstaller found in $SOURCE_DIR."
+            ui_info "This copy of Advance was installed by a package manager; remove it with your system package manager instead."
+            exit 1
+        fi
     fi
     if [[ "$1" == "schedule" ]]; then ensure_menu_loaded; manage_schedule; return 0; fi
 
     local _skip_update_check=false
     for _arg in "$@"; do
         case "$_arg" in
-            self-update|selfupdate|-U|--self-update|--selfupdate|-V|--version|-h|--help|changelog|-c|--changelog|-c=*|--changelog=*)
+            self-update|selfupdate|-U|--self-update|--selfupdate|uninstall|-V|--version|-h|--help|changelog|-c|--changelog|-c=*|--changelog=*)
                 _skip_update_check=true
                 break
                 ;;
@@ -309,8 +321,9 @@ There is NO WARRANTY, to the extent permitted by law.
 EOF
                 exit 0 ;;
             -U|--self-update|--selfupdate)
+                shift
                 ensure_menu_loaded
-                self_update
+                self_update "$@"
                 exit $? ;;
             -c=*|--changelog=*)
                 show_changelog "${1#*=}"; exit $? ;;
@@ -356,7 +369,7 @@ EOF
                 print_help_entry "🙋" "$C_PURP" "-i,    --interactive" "Force manual confirmation mode for all managers."
                 echo ""
                 echo -e "${C_BOLD}General:${C_RESET}"
-                print_help_entry "🔄" "$C_PURP" "-U,    --self-update, --selfupdate" "Update Advance and Checkpoint suite."
+                print_help_entry "🔄" "$C_PURP" "-U,    --self-update, --selfupdate" "Update Advance and Checkpoint suite (add --repair to repair install)."
                 print_help_entry "📜" "$C_PURP" "-c,    --changelog [ver]" "View release notes or open FZF browser."
                 print_help_entry "ℹ️" "$C_PURP" "-V,    --version" "Print version and exit."
                 print_help_entry "🔍" "$C_PURP" "-v,    --verbose, --debug" "Enable debug logs."
@@ -373,7 +386,8 @@ EOF
                 print_help_entry "➖" "$C_GREEN" "catalog remove <mgr>" "Remove an enrolled manager."
                 print_help_entry "📜" "$C_GREEN" "changelog [version]" "View changelog or open interactive release notes browser."
                 print_help_entry "📅" "$C_GREEN" "schedule" "Configure background auto-updates."
-                print_help_entry "🔄" "$C_GREEN" "self-update, selfupdate" "Update the tool suite."
+                print_help_entry "🔄" "$C_GREEN" "self-update [--repair]" "Update the tool suite (or repair per-user install)."
+                print_help_entry "🗑️" "$C_GREEN" "uninstall [OPTIONS]" "Uninstall per-user Advance installation (see --help)."
                 echo ""
                 echo -e "${C_BOLD}Groups:${C_RESET}"
                 echo -e "  Managers are organized in directories under $(tilde_path "$CUSTOM_DIR")/."

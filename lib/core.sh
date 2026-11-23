@@ -535,33 +535,147 @@ ensure_fzf() {
 # --- Smart Self-Update Detector ---
 # ==============================================================================
 
+_is_public_https_origin() {
+    local url="${1%/}"
+    url="${url%.git}"
+    [[ "$url" == "https://github.com/Stiggimy/advance" ]]
+}
+
+_self_update_timeout_secs() {
+    local raw="${1:-${SELF_UPDATE_TIMEOUT:-30s}}"
+    if [[ "$raw" =~ ^([0-9]+)(\.[0-9]+)?([smh]?)$ ]]; then
+        local num="${BASH_REMATCH[1]}" frac="${BASH_REMATCH[2]}" unit="${BASH_REMATCH[3]}"
+        case "$unit" in
+            m) num=$((num * 60)) ;;
+            h) num=$((num * 3600)) ;;
+        esac
+        if [[ "$num" -lt 1 && -n "$frac" ]]; then num=1; fi
+        [[ "$num" -lt 1 ]] && num=30
+        echo "$num"
+    else
+        echo 30
+    fi
+}
+
+_version_is_newer() {
+    local cur_ver="$1" cur_build="$2" rem_ver="$3" rem_build="$4"
+    [[ -z "$rem_ver" ]] && return 1
+    if [[ "$rem_ver" != "$cur_ver" ]]; then
+        [[ "$(printf '%s\n%s\n' "$cur_ver" "$rem_ver" | sort -V | tail -n 1)" == "$rem_ver" ]]
+        return $?
+    fi
+    if [[ "$cur_build" =~ ^[0-9]+$ && "$rem_build" =~ ^[0-9]+$ && "$rem_build" -gt "$cur_build" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+_http_download_file() (
+    local url="$1" dest="$2"
+    local secs
+    secs=$(_self_update_timeout_secs "${3:-${SELF_UPDATE_TIMEOUT:-30s}}")
+    local status=0
+    local dl_pid=""
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --connect-timeout 15 --max-time "$secs" "$url" -o "$dest" &
+        dl_pid=$!
+    elif command -v wget >/dev/null 2>&1; then
+        if [[ "$url" == file://* ]]; then
+            local src_path="${url#file://}"
+            [[ -f "$src_path" ]] || { ui_error "Download failed: file not found ($src_path)."; return 1; }
+            cp -f -- "$src_path" "$dest"
+            return $?
+        fi
+        wget -q --timeout="$secs" -O "$dest" "$url" &
+        dl_pid=$!
+    else
+        ui_error "Self-update requires either curl or wget."
+        return 1
+    fi
+
+    trap 'kill -TERM "$dl_pid" 2>/dev/null || true; wait "$dl_pid" 2>/dev/null || true; ui_error "Self-update cancelled."; exit 130' INT
+    trap 'kill -TERM "$dl_pid" 2>/dev/null || true; wait "$dl_pid" 2>/dev/null || true; exit 143' TERM
+    wait "$dl_pid" || status=$?
+    if [[ "$status" -ne 0 ]]; then
+        if [[ "$status" -eq 28 || "$status" -eq 124 ]]; then
+            ui_error "Download timed out after ${secs}s ($url). Retry with SELF_UPDATE_TIMEOUT=120s."
+        else
+            ui_error "Download failed (exit $status) for $url."
+        fi
+    fi
+    return "$status"
+)
+
 _refresh_self_update_cache() {
     (
         local s_dir="${SOURCE_DIR:-}"
-        [[ -z "$s_dir" || ! -d "$s_dir/.git" ]] && exit 0
-        git -C "$s_dir" remote 2>/dev/null | grep -qx 'origin' || exit 0
+        [[ -z "$s_dir" || ( ! -e "$s_dir/.git" && ! -f "$s_dir/.install-channel" ) ]] && exit 0
 
-        local branch
-        branch=$(git -C "$s_dir" branch --show-current 2>/dev/null)
-        branch=${branch:-master}
-
-        if command -v timeout >/dev/null 2>&1; then
-            timeout 3s git -C "$s_dir" fetch -q origin "$branch" 2>/dev/null || exit 0
-        else
-            git -C "$s_dir" fetch -q origin "$branch" 2>/dev/null || exit 0
+        local c_dir="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}"
+        mkdir -p "$c_dir" 2>/dev/null || exit 0
+        if command -v flock >/dev/null 2>&1; then
+            exec 9>"$c_dir/self_update_check.lock"
+            flock -n 9 || exit 0
         fi
 
-        local local_head remote_head behind
-        local_head=$(git -C "$s_dir" rev-parse HEAD 2>/dev/null)
-        remote_head=$(git -C "$s_dir" rev-parse "origin/$branch" 2>/dev/null)
-        behind=$(git -C "$s_dir" rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)
+        local local_head="" remote_head="" behind=0
+        local remote_ver="" remote_build=""
 
-        local remote_content remote_ver remote_build
-        remote_content=$(git -C "$s_dir" show "origin/$branch:advance" 2>/dev/null || true)
-        remote_ver=$(echo "$remote_content" | grep '^VERSION=' 2>/dev/null | head -n 1 | cut -d'"' -f2)
-        remote_build=$(echo "$remote_content" | grep '^BUILD=' 2>/dev/null | head -n 1 | cut -d'"' -f2)
+        if [[ -f "$s_dir/.install-channel" && ! -e "$s_dir/.git" ]]; then
+            local ch_raw=""
+            ch_raw=$(grep '^RAW_SCRIPT_URL=' "$s_dir/.install-channel" 2>/dev/null | head -n 1 | cut -d'=' -f2-)
+            local raw_url="${ADVANCE_RAW_SCRIPT_URL:-${ch_raw:-https://raw.githubusercontent.com/Stiggimy/advance/master/advance}}"
+            local hdr_tmp="$c_dir/.remote_hdr.$$"
+            if ! _http_download_file "$raw_url" "$hdr_tmp" 5 >/dev/null 2>&1; then
+                rm -f "$hdr_tmp"
+                exit 0
+            fi
+            remote_ver=$(grep '^VERSION=' "$hdr_tmp" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+            remote_build=$(grep '^BUILD=' "$hdr_tmp" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+            rm -f "$hdr_tmp"
+            [[ -n "$remote_ver" ]] || exit 0
+            local_head="${VERSION:-}+${BUILD:-}"
+            remote_head="${remote_ver}+${remote_build}"
+            if _version_is_newer "${VERSION:-0.0.0}" "${BUILD:-0}" "$remote_ver" "$remote_build"; then
+                behind=1
+            fi
+        else
+            command -v git >/dev/null 2>&1 || exit 0
+            git -C "$s_dir" remote 2>/dev/null | grep -qx 'origin' || exit 0
 
-        local c_file="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
+            local branch
+            branch=$(git -C "$s_dir" branch --show-current 2>/dev/null)
+            branch=${branch:-master}
+
+            local origin_url=""
+            origin_url=$(git -C "$s_dir" remote get-url origin 2>/dev/null || true)
+            local -a git_prefix=()
+            if _is_public_https_origin "$origin_url"; then
+                git_prefix=(-c credential.helper=)
+            fi
+
+            local -a fetch_cmd=(
+                env GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/true SSH_ASKPASS=/bin/true
+                SSH_ASKPASS_REQUIRE=never
+                "GIT_SSH_COMMAND=${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o ConnectTimeout=3}"
+            )
+            if command -v timeout >/dev/null 2>&1; then
+                fetch_cmd+=(timeout --kill-after=2s 5s)
+            fi
+            "${fetch_cmd[@]}" git -C "$s_dir" "${git_prefix[@]}" fetch -q origin "refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null || exit 0
+
+            local_head=$(git -C "$s_dir" rev-parse HEAD 2>/dev/null)
+            remote_head=$(git -C "$s_dir" rev-parse "origin/$branch" 2>/dev/null)
+            behind=$(git -C "$s_dir" rev-list --count "HEAD..origin/$branch" 2>/dev/null || echo 0)
+
+            local remote_content
+            remote_content=$(git -C "$s_dir" show "origin/$branch:advance" 2>/dev/null || true)
+            remote_ver=$(echo "$remote_content" | grep '^VERSION=' 2>/dev/null | head -n 1 | cut -d'"' -f2)
+            remote_build=$(echo "$remote_content" | grep '^BUILD=' 2>/dev/null | head -n 1 | cut -d'"' -f2)
+        fi
+
+        local c_file="$c_dir/self_update.cache"
         local cur_skipped=""
         if [[ -f "$c_file" ]]; then
             cur_skipped=$(grep '^SKIPPED_HEAD=' "$c_file" 2>/dev/null | head -n 1 | cut -d'=' -f2-)
@@ -569,7 +683,6 @@ _refresh_self_update_cache() {
 
         local now
         now=$(date +%s)
-        mkdir -p "$(dirname "$c_file")" 2>/dev/null
         local tmp_file="${c_file}.tmp.$$"
         {
             echo "LAST_CHECK=$now"
@@ -591,7 +704,7 @@ check_for_tool_updates() {
     if declare -f detect_source_dir >/dev/null 2>&1; then
         detect_source_dir
     fi
-    [[ -z "${SOURCE_DIR:-}" || ! -d "$SOURCE_DIR/.git" || ! -x "$SOURCE_DIR/install.sh" ]] && return 0
+    [[ -z "${SOURCE_DIR:-}" || ( ! -e "$SOURCE_DIR/.git" && ! -f "$SOURCE_DIR/.install-channel" ) || ! -x "$SOURCE_DIR/install.sh" ]] && return 0
 
     local cache_file="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
     local LAST_CHECK=0
@@ -620,7 +733,11 @@ check_for_tool_updates() {
     fi
 
     local cur_head now
-    cur_head=$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null)
+    if [[ -f "$SOURCE_DIR/.install-channel" && ! -e "$SOURCE_DIR/.git" ]]; then
+        cur_head="${VERSION:-}+${BUILD:-}"
+    else
+        cur_head=$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null)
+    fi
     now=$(date +%s)
 
     if [[ -n "$LOCAL_HEAD" && "$LOCAL_HEAD" != "$cur_head" ]]; then
@@ -700,12 +817,29 @@ check_for_tool_updates() {
 _self_update_git() (
     local limit="${SELF_UPDATE_TIMEOUT:-30s}"
     local status=0
+    if ! command -v git >/dev/null 2>&1; then
+        ui_error "Self-update requires git."
+        return 1
+    fi
     if ! command -v timeout >/dev/null 2>&1; then
         ui_error "Self-update requires the coreutils timeout command."
         return 1
     fi
+    local origin_url=""
+    origin_url=$(git remote get-url origin 2>/dev/null || true)
+    local is_public=false
+    local -a git_prefix=()
+    if _is_public_https_origin "$origin_url"; then
+        is_public=true
+        git_prefix=(-c credential.helper=)
+    fi
     local git_pid
-    GIT_TERMINAL_PROMPT=0 timeout --kill-after=5s "$limit" git "$@" &
+    GIT_TERMINAL_PROMPT=0 \
+    GIT_ASKPASS=/bin/true \
+    SSH_ASKPASS=/bin/true \
+    SSH_ASKPASS_REQUIRE=never \
+    GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o ConnectTimeout=15}" \
+    timeout --kill-after=5s "$limit" git "${git_prefix[@]}" "$@" &
     git_pid=$!
     # timeout uses a separate process group. Forward terminal cancellation to
     # its supervisor so Git and any credential-helper children are stopped.
@@ -714,6 +848,14 @@ _self_update_git() (
     wait "$git_pid" || status=$?
     if [[ "$status" -eq 124 || "$status" -eq 137 ]]; then
         ui_error "Self-update Git operation timed out after $limit. The remote connection or a credential helper may be stalled. Check Git access to this repository, then retry."
+        ui_info "For slower connections, retry with: SELF_UPDATE_TIMEOUT=120s advance self-update"
+        if [[ "$is_public" != true ]]; then
+            local helpers
+            helpers=$({ git config --get-all credential.helper 2>/dev/null; git config --get-all "credential.https://github.com.helper" 2>/dev/null; } || true)
+            if [[ "$helpers" == *gh* ]]; then
+                ui_info "Hint: GitHub CLI ('gh') is configured as a credential helper and may be stalled. Check 'gh auth status' or switch to SSH / a public checkout."
+            fi
+        fi
     elif [[ "$status" -ne 0 ]]; then
         ui_error "Self-update Git operation failed (exit $status). See Git output above."
         ui_info "For authentication errors, check the configured HTTPS credentials or SSH access. Public repositories do not require GitHub CLI or login."

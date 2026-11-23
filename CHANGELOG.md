@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
 - **Native Windows Port (Far Future)**: Support native Windows environments and package managers (Winget, Scoop, Chocolatey) alongside Linux/WSL.
 
+## [0.14.0] — 2026-11-23
+
+### Added
+- **Zero-Dependency Public Installer & Tarball Self-Update (`bootstrap.sh --with-checkpoint`)**: Public installations and self-updates now work using only `bash`, `tar`, and `curl` or `wget` (no `git` or `gh` required), while `.git` checkouts continue using fast-forward Git pulls. Enhanced `bootstrap.sh` with `--with-checkpoint`, `--no-checkpoint`, `-q`/`--quiet`, `-h`/`--help`, and an interactive prompt to install Checkpoint alongside Advance.
+- **Clean Uninstaller (`uninstall.sh` / `advance uninstall`)**: Added a dedicated per-user uninstaller supporting `--dry-run`, `--keep-config`, `--purge`, and `-y`/`--yes`, automatically cleaning user systemd auto-update timers while preserving system packages, snapshots, custom managers, and overrides by default.
+- **Self-Update Locking, Auto-Stash, Auto-Repair & `--repair`**: Added `flock` concurrency locking to self-update and background checks, interactive auto-stashing of uncommitted tracked changes, diverged-branch recovery guidance, automatic repair of missing symlinks or man pages, and `advance self-update --repair` (forwarded to companion Checkpoint).
+
+### Fixed
+- **Public HTTPS Credential-Helper Bypass & SSH Non-Interactive Guard**: Public HTTPS installations bypass local credential helpers automatically so stalled helpers (such as GitHub CLI) cannot block updates; background fetches use explicit refspecs, non-interactive askpass/batch SSH settings, and `flock` serialization.
+- **Zsh PATH Configuration**: `install.sh` now adds `~/.local/bin` to `~/.zshrc` when present, matching `~/.bashrc`.
+
 ## [0.13.1] — 2026-11-19
 
 ### Added

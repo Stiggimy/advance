@@ -3160,17 +3160,200 @@ EOF
     done
 }
 
+_self_update_tarball() {
+    local force_repair="${1:-false}"
+    if ! command -v tar >/dev/null 2>&1; then
+        ui_error "Self-update requires tar."
+        return 1
+    fi
+    if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+        ui_error "Self-update requires either curl or wget."
+        return 1
+    fi
+
+    local ch_file="$SOURCE_DIR/.install-channel"
+    local ch_channel="public" ch_archive="" ch_raw=""
+    while IFS='=' read -r k v || [[ -n "$k" ]]; do
+        case "$k" in
+            CHANNEL) ch_channel="$v" ;;
+            ARCHIVE_URL) ch_archive="$v" ;;
+            RAW_SCRIPT_URL) ch_raw="$v" ;;
+        esac
+    done < "$ch_file"
+    if [[ "$ch_channel" != "public" ]]; then
+        ui_error "Unsupported install channel '$ch_channel' in $ch_file."
+        return 1
+    fi
+
+    local archive_url="${ADVANCE_ARCHIVE_URL:-${ch_archive:-https://github.com/Stiggimy/advance/archive/refs/heads/master.tar.gz}}"
+    local raw_url="${ADVANCE_RAW_SCRIPT_URL:-${ch_raw:-https://raw.githubusercontent.com/Stiggimy/advance/master/advance}}"
+    local cache_dir="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}"
+    local install_pending="$cache_dir/self_update.install-pending"
+    local lock_file="$cache_dir/self_update.lock"
+    local old_ver="$VERSION" old_build="${BUILD:-0}"
+
+    (
+        if command -v flock >/dev/null 2>&1; then
+            mkdir -p "$cache_dir" || exit 1
+            exec 9>"$lock_file"
+            flock -n 9 || {
+                ui_error "Another Advance self-update is already in progress."
+                exit 1
+            }
+        fi
+
+        local needs_repair="$force_repair"
+        local launcher="$HOME/.local/bin/advance"
+        if [[ "$needs_repair" != true && -L "$launcher" && "$(readlink -f "$launcher" 2>/dev/null || true)" == "$SOURCE_DIR/advance" ]]; then
+            local data_dir="${ADVANCE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/advance}"
+            local man_file="${XDG_DATA_HOME:-$HOME/.local/share}/man/man1/advance.1"
+            if [[ ! -d "$data_dir/catalog" || ! -f "$man_file" || ! -d "$data_dir/lib" ]]; then
+                needs_repair=true
+            fi
+        fi
+
+        ui_info "Checking for Advance updates..."
+        local parent_dir
+        parent_dir=$(dirname "$SOURCE_DIR")
+        local staging
+        staging=$(mktemp -d "$parent_dir/.update.XXXXXXXX") || exit 1
+        trap 'rm -rf -- "$staging"' EXIT
+
+        local rem_ver="" rem_build="" is_newer=false
+        if _http_download_file "$raw_url" "$staging/remote_script"; then
+            rem_ver=$(grep '^VERSION=' "$staging/remote_script" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+            rem_build=$(grep '^BUILD=' "$staging/remote_script" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+            if _version_is_newer "$old_ver" "$old_build" "$rem_ver" "$rem_build"; then
+                is_newer=true
+            fi
+        elif [[ "$needs_repair" != true && ! -f "$install_pending" ]]; then
+            exit 1
+        fi
+
+        if [[ "$is_newer" != true && ! -f "$install_pending" && "$needs_repair" != true ]]; then
+            exit 10
+        fi
+
+        if [[ "$is_newer" == true ]]; then
+            ui_info "Downloading Advance v${rem_ver}${rem_build:+ (build $rem_build)}..."
+            _http_download_file "$archive_url" "$staging/archive.tar.gz" || exit $?
+            mkdir -p "$staging/extract"
+            tar -xzf "$staging/archive.tar.gz" -C "$staging/extract" || {
+                ui_error "Failed to extract Advance update archive."
+                exit 1
+            }
+            local extracted
+            extracted=$(find "$staging/extract" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+            if [[ -z "$extracted" || ! -f "$extracted/advance" || ! -f "$extracted/install.sh" ]]; then
+                ui_error "Downloaded archive is missing required Advance files."
+                exit 1
+            fi
+            {
+                echo "CHANNEL=public"
+                echo "METHOD=tarball"
+                echo "ARCHIVE_URL=$archive_url"
+                echo "RAW_SCRIPT_URL=$raw_url"
+            } > "$extracted/.install-channel"
+            chmod +x "$extracted/advance" "$extracted/install.sh"
+            [[ -f "$extracted/uninstall.sh" ]] && chmod +x "$extracted/uninstall.sh"
+            [[ -f "$extracted/bootstrap.sh" ]] && chmod +x "$extracted/bootstrap.sh"
+
+            mv -- "$SOURCE_DIR" "$staging/prev" || exit 1
+            if ! mv -T -- "$extracted" "$SOURCE_DIR"; then
+                mv -- "$staging/prev" "$SOURCE_DIR" 2>/dev/null || true
+                ui_error "Failed to replace $SOURCE_DIR; restored previous installation."
+                exit 1
+            fi
+        elif [[ -f "$install_pending" ]]; then
+            ui_info "Retrying pending installation..."
+        else
+            ui_info "Repairing Advance installation..."
+        fi
+
+        local cur_ver cur_build
+        cur_ver=$(grep '^VERSION=' "$SOURCE_DIR/advance" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+        cur_build=$(grep '^BUILD=' "$SOURCE_DIR/advance" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+        if ! mkdir -p "$(dirname "$install_pending")" || ! printf '%s+%s\n' "${cur_ver:-$old_ver}" "${cur_build:-$old_build}" > "$install_pending"; then
+            ui_error "Cannot record pending installation. Self-update stopped before running the installer."
+            exit 1
+        fi
+        local install_status=0
+        (cd "$SOURCE_DIR" && ./install.sh --quiet) || install_status=$?
+        if [[ "$install_status" -ne 0 ]]; then
+            ui_error "Update download completed, but installation failed. Retry self-update to finish installation."
+            exit "$install_status"
+        fi
+        if ! rm -f "$install_pending"; then
+            ui_error "Installation completed, but pending-install state could not be cleared."
+            exit 1
+        fi
+    )
+    local sub_code=$?
+    if [[ $sub_code -eq 10 ]]; then
+        ui_ok "Advance is already up to date (v$VERSION)."
+        rm -f "$cache_dir/self_update.cache"
+        _self_update_companion "$force_repair"
+        return $?
+    elif [[ $sub_code -ne 0 ]]; then
+        return "$sub_code"
+    fi
+
+    local new_ver new_build
+    new_ver=$(grep '^VERSION=' "$SOURCE_DIR/advance" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+    new_build=$(grep '^BUILD=' "$SOURCE_DIR/advance" 2>/dev/null | head -n 1 | cut -d'"' -f2)
+    new_ver="${new_ver:-$VERSION}"
+    new_build="${new_build:-$old_build}"
+
+    if [[ "$old_ver" != "$new_ver" || "$old_build" != "$new_build" ]]; then
+        echo ""
+        ui_ok "Advance updated successfully to v$new_ver!"
+        echo ""
+        ui_info "${C_BOLD}What's New in v$new_ver:${C_RESET}"
+        display_changelog "$new_ver" || display_changelog "latest"
+        echo ""
+    else
+        ui_ok "Advance installation repaired (v$new_ver)."
+    fi
+    rm -f "$cache_dir/self_update.cache"
+
+    _self_update_companion "$force_repair"
+}
+
 self_update() {
+    local force_repair=false
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --repair) force_repair=true; shift ;;
+            *) ui_error "Unknown self-update option: $1"; return 1 ;;
+        esac
+    done
+
     detect_source_dir
-    if [[ ! -d "$SOURCE_DIR" ]]; then ui_error "Source repo not found."; return 1; fi
+    if [[ ! -d "$SOURCE_DIR" ]]; then
+        ui_error "Source repo not found."
+        ui_info "Reinstall public Advance with: curl -fsSL https://raw.githubusercontent.com/Stiggimy/advance/master/bootstrap.sh | bash"
+        return 1
+    fi
     if [[ ! -x "$SOURCE_DIR/install.sh" ]]; then
         ui_error "No installer found in $SOURCE_DIR."
         ui_info "This copy of Advance was installed by a package manager; update it with your system package manager instead."
         return 1
     fi
+
+    if [[ -f "$SOURCE_DIR/.install-channel" && ! -e "$SOURCE_DIR/.git" ]]; then
+        _self_update_tarball "$force_repair"
+        return $?
+    fi
+
+    if ! command -v git >/dev/null 2>&1; then
+        ui_error "Git is required for self-update."
+        return 1
+    fi
     # Let Git test its configured destination and transport directly. General
     # connectivity probes can fail even when the repository is reachable.
-    local install_pending="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.install-pending"
+    local cache_dir="${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}"
+    local install_pending="$cache_dir/self_update.install-pending"
+    local lock_file="$cache_dir/self_update.lock"
     local old_ver="$VERSION"
     local old_commit
     if ! old_commit=$(git -C "$SOURCE_DIR" rev-parse --verify HEAD 2>/dev/null); then
@@ -3179,31 +3362,89 @@ self_update() {
     fi
     (
         cd "$SOURCE_DIR" || exit 1
+        if command -v flock >/dev/null 2>&1; then
+            mkdir -p "$cache_dir" || exit 1
+            exec 9>"$lock_file"
+            flock -n 9 || {
+                ui_error "Another Advance self-update is already in progress."
+                exit 1
+            }
+        fi
         local branch
         if ! branch=$(git symbolic-ref --quiet --short HEAD); then
             ui_error "Self-update cannot update a detached HEAD. Switch to the branch you want to update first."
+            ui_info "Run: git -C \"$SOURCE_DIR\" checkout master"
             exit 1
         fi
         if ! git diff --quiet HEAD --; then
             ui_error "Self-update stopped: uncommitted tracked changes exist. Commit or stash your changes, then retry."
-            exit 1
+            git status --short --untracked-files=no >&2 || true
+            if [[ -t 0 && -t 1 ]]; then
+                echo -n -e "${C_BOLD}Stash these local changes automatically and continue updating? [y/N]: ${C_RESET}"
+                local stash_choice=""
+                read -r -n 1 stash_choice
+                echo ""
+                if [[ "$stash_choice" =~ ^[Yy]$ ]]; then
+                    local stash_label="advance self-update auto-stash $(date +%Y-%m-%d_%H%M%S)"
+                    if git stash push -m "$stash_label"; then
+                        ui_ok "Stashed local changes as '$stash_label'."
+                        ui_info "Restore them later with: git -C \"$SOURCE_DIR\" stash pop"
+                    else
+                        ui_error "Could not stash local changes. Self-update stopped."
+                        exit 1
+                    fi
+                else
+                    ui_info "Self-update cancelled. Local changes were preserved."
+                    exit 1
+                fi
+            else
+                ui_info "To save them and retry: git -C \"$SOURCE_DIR\" stash push -m \"before self-update\""
+                exit 1
+            fi
         fi
         if ! git remote get-url origin >/dev/null 2>&1; then
             ui_error "Self-update requires a configured origin remote. No remote was changed."
+            ui_info "For public installs, run: git -C \"$SOURCE_DIR\" remote add origin https://github.com/Stiggimy/advance.git"
             exit 1
         fi
         ui_info "Checking for updates in $SOURCE_DIR (origin/$branch)..."
-        _self_update_git -c advice.diverging=false pull --progress --ff-only origin "$branch" || exit $?
+        local pull_rc=0
+        _self_update_git -c advice.diverging=false pull --progress --ff-only origin "$branch" || pull_rc=$?
+        if [[ "$pull_rc" -ne 0 ]]; then
+            local ahead_cnt=0
+            ahead_cnt=$(git rev-list --count "origin/$branch..HEAD" 2>/dev/null || echo 0)
+            if [[ "$ahead_cnt" -gt 0 ]]; then
+                ui_info "Your local branch has $ahead_cnt commit(s) not on origin/$branch."
+                ui_info "Review with: git -C \"$SOURCE_DIR\" log --oneline origin/$branch..HEAD"
+                ui_info "To discard local commits and match origin/$branch: git -C \"$SOURCE_DIR\" reset --hard origin/$branch"
+            fi
+            exit "$pull_rc"
+        fi
         if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
             git branch --set-upstream-to="origin/$branch" "$branch" >/dev/null 2>&1 || true
         fi
         local cur_commit
         cur_commit=$(git rev-parse HEAD 2>/dev/null || true)
-        if [[ -n "$old_commit" && "$old_commit" == "$cur_commit" && ! -f "$install_pending" ]]; then
+
+        local needs_repair="$force_repair"
+        local launcher="$HOME/.local/bin/advance"
+        if [[ "$needs_repair" != true && -L "$launcher" && "$(readlink -f "$launcher" 2>/dev/null || true)" == "$SOURCE_DIR/advance" ]]; then
+            local data_dir="${ADVANCE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/advance}"
+            local man_file="${XDG_DATA_HOME:-$HOME/.local/share}/man/man1/advance.1"
+            if [[ ! -d "$data_dir/catalog" || ! -f "$man_file" || ! -d "$data_dir/lib" ]]; then
+                needs_repair=true
+            fi
+        fi
+
+        if [[ -n "$old_commit" && "$old_commit" == "$cur_commit" && ! -f "$install_pending" && "$needs_repair" != true ]]; then
             exit 10
         fi
         if [[ "$old_commit" == "$cur_commit" ]]; then
-            ui_info "Retrying pending installation..."
+            if [[ -f "$install_pending" ]]; then
+                ui_info "Retrying pending installation..."
+            else
+                ui_info "Repairing Advance installation..."
+            fi
         fi
         if ! mkdir -p "$(dirname "$install_pending")" || ! printf '%s\n' "$cur_commit" > "$install_pending"; then
             ui_error "Cannot record pending installation. Self-update stopped before running the installer."
@@ -3223,8 +3464,8 @@ self_update() {
     local sub_code=$?
     if [[ $sub_code -eq 10 ]]; then
         ui_ok "Advance is already up to date (v$VERSION)."
-        rm -f "${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
-        _self_update_companion
+        rm -f "$cache_dir/self_update.cache"
+        _self_update_companion "$force_repair"
         return $?
     elif [[ $sub_code -ne 0 ]]; then
         return "$sub_code"
@@ -3243,19 +3484,24 @@ self_update() {
         ui_info "${C_BOLD}What's New in v$new_ver:${C_RESET}"
         display_changelog "$new_ver" || display_changelog "latest"
         echo ""
+    else
+        ui_ok "Advance installation repaired (v$new_ver)."
     fi
-    rm -f "${ADVANCE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/advance}/self_update.cache"
+    rm -f "$cache_dir/self_update.cache"
 
-    _self_update_companion
+    _self_update_companion "$force_repair"
 }
 
 _self_update_companion() {
+    local force_repair="${1:-false}"
     if ! command -v checkpoint >/dev/null 2>&1; then
         return 0
     fi
     echo ""
     ui_info "Updating companion tool (checkpoint)..."
-    if ! checkpoint self-update; then
+    local -a args=(self-update)
+    [[ "$force_repair" == true ]] && args+=(--repair)
+    if ! checkpoint "${args[@]}"; then
         ui_error "Advance is up to date, but Checkpoint self-update failed. Retry with: checkpoint self-update"
         return 1
     fi

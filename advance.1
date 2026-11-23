@@ -106,7 +106,7 @@ Force manual confirmation mode for all managers. Strips auto-confirm flags (\fBF
 .SS General Options
 .TP
 .BR \-U ", " \-\-self\-update ", " \-\-selfupdate
-Update the Advance and Checkpoint tool suite by pulling latest changes from the git repository and reinstalling.
+Update the Advance and Checkpoint tool suite by pulling latest changes from the git repository and reinstalling. Pass \fB\-\-repair\fR to force re\-running the per\-user installer.
 .TP
 .BR \-c ", " \-\-changelog " [" \fIVERSION\fR "]"
 Display formatted release notes from the changelog. If executed interactively in a terminal without arguments and \fBfzf\fR is available, launches an interactive version browser.
@@ -139,8 +139,11 @@ Open the interactive systemd auto-update scheduling wizard.
 .B catalog \fR[\fBlist\fR|\fBscan\fR|\fBenroll \fIMGR\fR|\fBremove \fIMGR\fR]
 Manage official catalog recipes. \fBlist\fR displays all catalog recipes with installation and enrollment status; \fBscan\fR auto-enrolls all detected tools; \fBenroll\fR symlinks a catalog recipe into active managers; \fBremove\fR disables an active manager.
 .TP
-.BR self\-update ", " selfupdate
-Pull latest changes from the git repository and reinstall the tool suite.
+.BR self\-update ", " selfupdate " [\fB\-\-repair\fR]"
+Update the tool suite and reinstall. Pass \fB\-\-repair\fR to repair per\-user symlinks and manual pages even when already up to date.
+.TP
+.B uninstall \fR[\fB\-\-purge\fR|\fB\-\-keep\-config\fR] [\fB\-\-dry\-run\fR] [\fB\-y\fR]
+Remove a per\-user Advance installation from \fB~/.local\fR and clean up user systemd auto\-update units without modifying system packages or snapshots. Pass \fB\-\-purge\fR to also remove \fB~/.config/advance\fR and \fB~/.local/state/advance\fR.
 .SH ENVIRONMENT
 Advance follows the XDG Base Directory specification. Set these variables to relocate its files:
 .TP
@@ -239,18 +242,13 @@ Optional user drop-in override files. Values defined here take precedence over c
 .BR timeshift (1)
 
 .SH SELF-UPDATE
-For per-user public installations, the standalone bootstrap.sh installer can also repair an interrupted installation or bypass an older updater. Download it from the public Advance repository and run it with bash. It reuses the linked public master checkout and runs install.sh even when the checkout is current.
+For per-user public installations, the standalone \fBbootstrap.sh\fR installer supports one-line zero-dependency installation using only \fBcurl\fR or \fBwget\fR and \fBtar\fR (no \fBgit\fR or \fBgh\fR required), optional \fB\-\-with\-checkpoint\fR companion setup, repair of interrupted installations, and updating legacy Git clones.
 .PP
-Self-update pulls the current branch from the configured origin without rewriting remote URLs. It displays the source checkout and origin branch before pulling. Public repositories do not require GitHub CLI or login; private repositories require Git authentication.
+Tarball installations update via plain HTTPS archive downloads; Git checkouts pull the current branch from the configured origin without rewriting remote URLs and automatically bypass local credential helpers for public HTTPS origins (private repositories use configured HTTPS credentials or non-interactive SSH).
 .PP
-Git operations show progress and time out after 30 seconds. Set SELF_UPDATE_TIMEOUT (for example, 120s) to adjust this limit. Failed pulls abort before installation. Package-managed installations should be updated through their package manager.
-
-.PP
-Self-update checks connectivity through Git itself. Authentication failures retain Git output and include guidance for configured HTTPS credentials or SSH access.
+Both modes use an exclusive lock to prevent concurrent updates and bound network operations to 30 seconds by default (adjust via \fBSELF_UPDATE_TIMEOUT=120s\fR). Failed downloads or pulls abort before installation. Package-managed installations should be updated through their package manager.
 If Checkpoint fails to update, Advance returns a failure status and shows a command to retry the companion update.
-
 .PP
-Self-update requires an attached branch, a valid commit, a configured origin, and no staged or unstaged tracked changes. Commit or stash local tracked changes before updating. Untracked files are preserved; Git refuses incoming changes that would overwrite them. Ctrl+C cancels Git and its helper processes.
-
+In Git checkouts, self-update checks connectivity through Git itself, requires an attached branch and configured origin, preserves untracked files, and offers interactive auto-stashing when uncommitted tracked changes exist (non-interactive runs refuse and print a stash command). Diverged branches display review/reset guidance. Ctrl+C cancels active network and helper processes cleanly.
 .PP
-If installation fails after a successful Git pull, rerun self-update to retry installation. Pending installation state is retained in the application cache until installation succeeds.
+If installation fails after downloading, or if installed symlinks or manual pages are missing, self-update automatically repairs the installation. Pass \fB\-\-repair\fR to force reinstallation explicitly.

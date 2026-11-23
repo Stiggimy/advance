@@ -122,8 +122,13 @@ if [ "$QUIET" != true ]; then
         echo "${YELLOW}[WARN] Note: It is highly recommended to install 'checkpoint' for full safety features.${RESET}"
         echo "       Without it, Advance cannot create system backups before updating."
         echo ""
-        echo "${BLUE}Quick Tip:${RESET} To install it easily, go to your checkpoint repository and run:"
-        echo "           ${BOLD}./install.sh${RESET}"
+        if [ -x "$SCRIPT_DIR/../checkpoint/install.sh" ]; then
+            echo "${BLUE}Quick Tip:${RESET} To install it easily, run:"
+            echo "           ${BOLD}(cd \"$SCRIPT_DIR/../checkpoint\" && ./install.sh)${RESET}"
+        else
+            echo "${BLUE}Quick Tip:${RESET} Install it in one command with:"
+            echo "           ${BOLD}curl -fsSL https://raw.githubusercontent.com/Stiggimy/checkpoint/master/bootstrap.sh | bash${RESET}"
+        fi
         echo ""
     fi
 fi
@@ -179,11 +184,14 @@ if ! command -v fzf >/dev/null 2>&1 && [ ! -x "$BIN_DIR/fzf" ] && [ ! -x "$HOME/
     fi
 fi
 
-# Ensure ~/.local/bin is in ~/.bashrc for login and non-login shells (essential for WSL)
-if [[ -f "$HOME/.bashrc" ]] && ! grep -q '\.local/bin' "$HOME/.bashrc" 2>/dev/null; then
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-    [ "$QUIET" != true ] && echo "  ${GREEN}[CONFIG]${RESET} Added ~/.local/bin to ~/.bashrc for WSL non-login shells."
-fi
+# Ensure ~/.local/bin is in ~/.bashrc / ~/.zshrc for login and non-login shells
+for _rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [[ -f "$_rc" ]] && ! grep -q '\.local/bin' "$_rc" 2>/dev/null; then
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$_rc"
+        [ "$QUIET" != true ] && echo "  ${GREEN}[CONFIG]${RESET} Added ~/.local/bin to $_rc."
+    fi
+done
+unset _rc
 
 if [ "$QUIET" != true ]; then
     if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
