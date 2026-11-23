@@ -58,23 +58,23 @@ This installs the binary to `/usr/bin/advance`, libraries to `/usr/lib/advance`,
 
 ### Everyday usage
 ```bash
-advance                 # Update everything (with pre/post snapshots if Checkpoint is installed)
-advance --check         # Check for available updates only, no sudo (short: -ch)
+advance                    # Update everything (with pre/post snapshots if Checkpoint is installed)
+advance --check            # Check for available updates only, no sudo (short: -ch)
 advance --check --verbose  # Check for updates and list upgradable packages (short: -ch -v)
-advance config          # Open interactive settings and package manager menu
-advance schedule        # Set up automatic background updates (systemd timer)
-advance changelog       # Browse release notes interactively (short flag: -c)
+advance config             # Open interactive settings and package manager menu
+advance schedule           # Set up automatic background updates (systemd timer)
+advance changelog          # Browse release notes interactively (short flag: -c)
 ```
 
 > **Note for Debian/Ubuntu (`apt`):** `advance --check` (`-ch`) displays **Always runs** because normal updates automatically refresh package lists before upgrading. The check-only package total counts only managers that report package lists.
 
 ### Run or skip specific package managers
 ```bash
-advance --only yay                  # Only run Yay (short: -o yay)
-advance --only yay --only pacman    # Force-run both Yay and Pacman together (short: -o yay -o pacman)
-advance --only-group system         # Only run the preferred manager in 'system' (short: -og system)
-advance --no yay                    # Skip Yay and fall back to Paru/Pacman (short: -n yay)
-advance --no-group flatpak          # Skip the entire Flatpak group (short: -ng flatpak)
+advance --only yay                # Only run Yay (short: -o yay)
+advance --only yay --only pacman  # Force-run both Yay and Pacman together (short: -o yay -o pacman)
+advance --only-group system       # Only run the preferred manager in 'system' (short: -og system)
+advance --no yay                  # Skip Yay and fall back to Paru/Pacman (short: -n yay)
+advance --no-group flatpak        # Skip the entire Flatpak group (short: -ng flatpak)
 ```
 
 ### Exclude packages, tweak flags, or handle slow commands
@@ -89,11 +89,11 @@ advance --verbose                         # Show detailed debug output (short: -
 
 ### Control backups (snapshots) on the fly
 ```bash
-advance --no-pre-snapshot --no-snapshot   # Update without taking pre/post snapshots (short: -nprs -ns)
-advance --keep-snapshot                   # Protect post-update snapshot as [KEEP] (short: -ks)
-advance --keep 10                         # Keep the last 10 normal snapshots (short: -k 10)
-advance --only-pre-snapshot               # Only create a pre-update snapshot and exit (short: -oprs)
-advance --only-post-snapshot              # Only create a post-update snapshot and exit (short: -ops)
+advance --no-pre-snapshot --no-snapshot  # Update without taking pre/post snapshots (short: -nprs -ns)
+advance --keep-snapshot                  # Protect post-update snapshot as [KEEP] (short: -ks)
+advance --keep 10                        # Keep the last 10 normal snapshots (short: -k 10)
+advance --only-pre-snapshot              # Only create a pre-update snapshot and exit (short: -oprs)
+advance --only-post-snapshot             # Only create a post-update snapshot and exit (short: -ops)
 ```
 
 ---
@@ -123,18 +123,18 @@ advance --only-post-snapshot              # Only create a post-update snapshot a
 
 ### Updating
 ```bash
-advance --self-update             # Update Advance and Checkpoint (short: -U)
-advance self-update --repair      # Repair symlinks, libraries, or manual pages (short: -r)
+advance --self-update         # Update Advance and Checkpoint (short: -U)
+advance self-update --repair  # Repair symlinks, libraries, or manual pages (short: -r)
 ```
 Public installations update using only `curl`/`wget` and `tar` — no `git` or `gh` needed.
 
 ### Uninstalling
 ```bash
-advance uninstall                 # Remove Advance cleanly (prompts before touching config)
-advance uninstall --dry-run       # Preview what would be removed (short: -n)
-advance uninstall --keep-config   # Keep ~/.config/advance without prompting (short: -k)
-advance uninstall --purge         # Also remove ~/.config/advance and state (short: -p)
-advance uninstall --yes           # Skip confirmation prompts (short: -y)
+advance uninstall                # Remove Advance cleanly (prompts before touching config)
+advance uninstall --dry-run      # Preview what would be removed (short: -n)
+advance uninstall --keep-config  # Keep ~/.config/advance without prompting (short: -k)
+advance uninstall --purge        # Also remove ~/.config/advance and state (short: -p)
+advance uninstall --yes          # Skip confirmation prompts (short: -y)
 ```
 System packages, snapshots, and any external repository folders are never touched. Disabled user auto-update timers (`advance-update.timer`) are removed automatically.
 
