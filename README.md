@@ -107,8 +107,9 @@ advance -ops                        # Only create a post-update snapshot and exi
   - `[O]verride` — Retry with conflict/force flags when configured
   - `[I]nteractive` — Switch to manual prompts so you can answer questions yourself
   - `[F]allback` — Switch to the backup manager in the same group
-  - `[E]dit` — Edit the command right in your terminal and run it
-  - `[S]kip` / `[A]bort` — Skip this manager or stop the run
+  - `[E]dit` — Edit th command right in your terminal and run it
+  - `[S]kip` — Skip this manager specifically
+  - `[A]bort` — Stop the run completely
 - ⏱️ **Freeze detection:** Watches command output and rings an alert + desktop notification if an update hangs silently (`[W]ait`, `[T]erminate & Recover`, `[A]bort`).
 - 🚫 **Easy package exclusions:** Hold back problematic packages on the command line (`-ex <pkg>`), in settings (`EXCLUDE_PACKAGES`), or in `~/.config/advance/excludes`.
 - 🌐 **Pre-flight connection check:** Checks network connectivity before starting so offline runs fail fast instead of hanging.
@@ -127,11 +128,11 @@ Public installations update using only `curl`/`wget` and `tar` — no `git` or `
 
 ### Uninstalling
 ```bash
-advance uninstall              # Remove Advance cleanly (prompts before touching your config)
-advance uninstall --dry-run    # Preview what would be removed without changing anything
-advance uninstall --keep-config # Keep ~/.config/advance (custom managers & overrides)
-advance uninstall --purge      # Also remove ~/.config/advance and ~/.local/state/advance
-advance uninstall -y           # Skip confirmation prompts (still keeps config unless --purge)
+advance uninstall                # Remove Advance cleanly (prompts before touching your config)
+advance uninstall --dry-run      # Preview what would be removed without changing anything
+advance uninstall --keep-config  # Keep ~/.config/advance (custom managers & overrides)
+advance uninstall --purge        # Also remove ~/.config/advance and ~/.local/state/advance
+advance uninstall -y             # Skip confirmation prompts (still keeps config unless --purge)
 ```
 System packages, snapshots, and any external repository folders are never touched. Disabled user auto-update timers (`advance-update.timer`) are removed automatically.
 
