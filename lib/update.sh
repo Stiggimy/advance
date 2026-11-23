@@ -328,7 +328,7 @@ EOF
             -c=*|--changelog=*)
                 show_changelog "${1#*=}"; exit $? ;;
             -c|--changelog)
-                if [[ "$2" =~ ^(--latest|--all|all|current|--current|-h|--help|-V|--version)$ || ( -n "$2" && "$2" != -* ) ]]; then
+                if [[ "$2" =~ ^(-L|--latest|-a|--all|all|-C|current|--current|-u|--unreleased|-h|--help|-V|--version)$ || ( -n "$2" && "$2" != -* ) ]]; then
                     show_changelog "$2"; exit $?
                 else
                     show_changelog; exit $?
@@ -369,7 +369,7 @@ EOF
                 print_help_entry "🙋" "$C_PURP" "-i,    --interactive" "Force manual confirmation mode for all managers."
                 echo ""
                 echo -e "${C_BOLD}General:${C_RESET}"
-                print_help_entry "🔄" "$C_PURP" "-U,    --self-update, --selfupdate" "Update Advance and Checkpoint suite (add --repair to repair install)."
+                print_help_entry "🔄" "$C_PURP" "-U,    --self-update, --selfupdate" "Update Advance and Checkpoint suite (add -r/--repair to repair install)."
                 print_help_entry "📜" "$C_PURP" "-c,    --changelog [ver]" "View release notes or open FZF browser."
                 print_help_entry "ℹ️" "$C_PURP" "-V,    --version" "Print version and exit."
                 print_help_entry "🔍" "$C_PURP" "-v,    --verbose, --debug" "Enable debug logs."
@@ -377,7 +377,7 @@ EOF
                 echo ""
                 echo -e "${C_BOLD}Subcommands:${C_RESET}"
                 print_help_entry "⚙️" "$C_GREEN" "config" "Interactive settings menu."
-                print_help_entry "📦" "$C_GREEN" "config export [mgr|--all]" "Export package manager configuration."
+                print_help_entry "📦" "$C_GREEN" "config export [mgr|-a|--all]" "Export package manager configuration."
                 print_help_entry "📥" "$C_GREEN" "config import <file|url>" "Import package manager configuration."
                 print_help_entry "📚" "$C_GREEN" "catalog" "Official manager recipes catalog."
                 print_help_entry "📋" "$C_GREEN" "catalog list" "List catalog managers and enrollment status."
@@ -386,7 +386,7 @@ EOF
                 print_help_entry "➖" "$C_GREEN" "catalog remove <mgr>" "Remove an enrolled manager."
                 print_help_entry "📜" "$C_GREEN" "changelog [version]" "View changelog or open interactive release notes browser."
                 print_help_entry "📅" "$C_GREEN" "schedule" "Configure background auto-updates."
-                print_help_entry "🔄" "$C_GREEN" "self-update [--repair]" "Update the tool suite (or repair per-user install)."
+                print_help_entry "🔄" "$C_GREEN" "self-update [-r|--repair]" "Update the tool suite (or repair per-user install)."
                 print_help_entry "🗑️" "$C_GREEN" "uninstall [OPTIONS]" "Uninstall per-user Advance installation (see --help)."
                 echo ""
                 echo -e "${C_BOLD}Groups:${C_RESET}"

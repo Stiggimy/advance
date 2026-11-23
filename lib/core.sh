@@ -197,14 +197,14 @@ extract_changelog_section() {
     local changelog="${2:-$(get_changelog_path)}"
     [[ -z "$changelog" || ! -f "$changelog" ]] && return 1
 
-    if [[ "$target_ver" == "latest" || "$target_ver" == "--latest" || -z "$target_ver" ]]; then
+    if [[ "$target_ver" == "latest" || "$target_ver" == "--latest" || "$target_ver" == "-L" || -z "$target_ver" ]]; then
         target_ver=$(grep -E '^## \[[0-9]' "$changelog" 2>/dev/null | head -n 1 | sed -E 's/^## \[([^]]+)\].*/\1/')
         if [[ -z "$target_ver" ]]; then
             target_ver=$(grep -E '^## \[' "$changelog" 2>/dev/null | head -n 1 | sed -E 's/^## \[([^]]+)\].*/\1/')
         fi
-    elif [[ "${target_ver,,}" == "unreleased" || "${target_ver,,}" == "--unreleased" || "${target_ver,,}" == "upcoming" ]]; then
+    elif [[ "${target_ver,,}" == "unreleased" || "${target_ver,,}" == "--unreleased" || "$target_ver" == "-u" || "${target_ver,,}" == "upcoming" ]]; then
         target_ver="Unreleased"
-    elif [[ "$target_ver" == "current" || "$target_ver" == "--current" ]]; then
+    elif [[ "$target_ver" == "current" || "$target_ver" == "--current" || "$target_ver" == "-C" ]]; then
         target_ver="${VERSION:-}"
         if [[ -z "$target_ver" && -n "${SOURCE_DIR:-}" && -f "$SOURCE_DIR/advance" ]]; then
             target_ver=$(grep '^VERSION=' "$SOURCE_DIR/advance" 2>/dev/null | head -n 1 | cut -d'"' -f2)
@@ -306,7 +306,7 @@ display_changelog() {
         return 1
     fi
 
-    if [[ "$target_ver" == "all" || "$target_ver" == "--all" ]]; then
+    if [[ "$target_ver" == "all" || "$target_ver" == "--all" || "$target_ver" == "-a" ]]; then
         awk '/^## \[/ { found = 1 } found { print }' "$changelog" | format_changelog_markdown
         return 0
     fi
@@ -410,19 +410,19 @@ browse_changelog_interactive() {
 show_changelog() {
     local req_ver="$1"
     if [[ "$req_ver" == "-h" || "$req_ver" == "--help" ]]; then
-        echo -e "${C_BOLD}Usage:${C_RESET} advance changelog [VERSION|unreleased|--latest|all|current]"
-        echo -e "       advance -c, --changelog [VERSION|unreleased|--latest|all|current]"
+        echo -e "${C_BOLD}Usage:${C_RESET} advance changelog [VERSION|-L|--latest|-C|--current|-u|--unreleased|-a|--all]"
+        echo -e "       advance -c, --changelog [VERSION|-L|--latest|-C|--current|-u|--unreleased|-a|--all]"
         echo ""
         echo "Display release notes and version history."
         echo ""
         echo "Arguments:"
-        echo "  [VERSION]       Display release notes for a specific version (e.g., 0.9.34 or v0.9.34)."
-        echo "  unreleased      Display upcoming features currently in development."
-        echo "  --latest        Display release notes for the latest release."
-        echo "  current         Display release notes for the currently running version."
-        echo "  all, --all      Display complete formatted changelog history."
-        echo "  -h, --help      Display this help message."
-        echo "  -V, --version   Display version information."
+        echo "  [VERSION]         Display release notes for a specific version (e.g., 0.14.0)."
+        echo "  -L, --latest      Display release notes for the latest release."
+        echo "  -C, --current     Display release notes for the currently running version."
+        echo "  -u, --unreleased  Display upcoming features currently in development."
+        echo "  -a, --all         Display complete formatted changelog history."
+        echo "  -h, --help        Display this help message."
+        echo "  -V, --version     Display version information."
         echo ""
         echo "When run in an interactive terminal with 'fzf' available and no version specified,"
         echo "an interactive version browser will open with real-time preview."

@@ -106,7 +106,7 @@ Force manual confirmation mode for all managers. Strips auto-confirm flags (\fBF
 .SS General Options
 .TP
 .BR \-U ", " \-\-self\-update ", " \-\-selfupdate
-Update the Advance and Checkpoint tool suite by pulling latest changes from the git repository and reinstalling. Pass \fB\-\-repair\fR to force re\-running the per\-user installer.
+Update the Advance and Checkpoint tool suite and reinstall. Pass \fB\-r\fR or \fB\-\-repair\fR to force re\-running the per\-user installer.
 .TP
 .BR \-c ", " \-\-changelog " [" \fIVERSION\fR "]"
 Display formatted release notes from the changelog. If executed interactively in a terminal without arguments and \fBfzf\fR is available, launches an interactive version browser.
@@ -127,7 +127,7 @@ Browse interactive release history or print formatted release notes for a specif
 .B config
 Open the interactive configuration menu (requires \fBfzf\fR), including visual group & manager priority ordering (with \fBAlt+Up\fR/\fBAlt+Down\fR reordering hotkeys and automatic conflict-free renumbering), guided package manager creation, non-destructive flag editing, and general preferences.
 .TP
-.B config export \fR[\fIMANAGER\fR|\fB\-\-all\fR]
+.B config export \fR[\fIMANAGER\fR|\fB\-a\fR|\fB\-\-all\fR]
 Print configuration for the specified manager to stdout, or bundle all manager configurations into a tarball (\fBadvance-managers.tar.gz\fR).
 .TP
 .B config import \fI<file|url>\fR
@@ -139,11 +139,11 @@ Open the interactive systemd auto-update scheduling wizard.
 .B catalog \fR[\fBlist\fR|\fBscan\fR|\fBenroll \fIMGR\fR|\fBremove \fIMGR\fR]
 Manage official catalog recipes. \fBlist\fR displays all catalog recipes with installation and enrollment status; \fBscan\fR auto-enrolls all detected tools; \fBenroll\fR symlinks a catalog recipe into active managers; \fBremove\fR disables an active manager.
 .TP
-.BR self\-update ", " selfupdate " [\fB\-\-repair\fR]"
-Update the tool suite and reinstall. Pass \fB\-\-repair\fR to repair per\-user symlinks and manual pages even when already up to date.
+.BR self\-update ", " selfupdate " [\fB\-r\fR|\fB\-\-repair\fR]"
+Update the tool suite and reinstall. Pass \fB\-r\fR or \fB\-\-repair\fR to repair per\-user symlinks and manual pages even when already up to date.
 .TP
-.B uninstall \fR[\fB\-\-purge\fR|\fB\-\-keep\-config\fR] [\fB\-\-dry\-run\fR] [\fB\-y\fR]
-Remove a per\-user Advance installation from \fB~/.local\fR and clean up user systemd auto\-update units without modifying system packages or snapshots. Pass \fB\-\-purge\fR to also remove \fB~/.config/advance\fR and \fB~/.local/state/advance\fR.
+.B uninstall \fR[\fB\-p\fR|\fB\-\-purge\fR|\fB\-k\fR|\fB\-\-keep\-config\fR] [\fB\-n\fR|\fB\-\-dry\-run\fR] [\fB\-y\fR|\fB\-\-yes\fR] [\fB\-q\fR|\fB\-\-quiet\fR]
+Remove a per\-user Advance installation from \fB~/.local\fR and clean up user systemd auto\-update units without modifying system packages or snapshots. Pass \fB\-p\fR or \fB\-\-purge\fR to also remove \fB~/.config/advance\fR and \fB~/.local/state/advance\fR.
 .SH ENVIRONMENT
 Advance follows the XDG Base Directory specification. Set these variables to relocate its files:
 .TP

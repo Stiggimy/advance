@@ -97,10 +97,10 @@ Install, update, or repair a per-user Advance installation from the public repos
 Requires only bash, tar, and curl or wget (no git or gh required).
 
 Options:
-  --with-checkpoint   Also install or repair companion Checkpoint automatically
-  --no-checkpoint     Skip interactive prompt to install companion Checkpoint
-  -q, --quiet         Pass --quiet to install.sh
-  -h, --help          Display this help and exit
+  -c, --with-checkpoint   Also install or repair companion Checkpoint automatically
+  -C, --no-checkpoint     Skip interactive prompt to install companion Checkpoint
+  -q, --quiet             Pass --quiet to install.sh
+  -h, --help              Display this help and exit
 EOF
 }
 
@@ -127,8 +127,8 @@ main() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --with-checkpoint) with_checkpoint=true; shift ;;
-            --no-checkpoint) no_checkpoint=true; shift ;;
+            -c|--with-checkpoint) with_checkpoint=true; shift ;;
+            -C|--no-checkpoint) no_checkpoint=true; shift ;;
             -q|--quiet) quiet=true; shift ;;
             -h|--help) usage; return 0 ;;
             *) die "Unknown option: $1 (run with --help for usage)" ;;

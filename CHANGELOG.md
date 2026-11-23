@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Desktop Companion GUI**: Standalone graphical interface for visual system updates, health status, and one-click snapshot rollbacks.
 - **Native Windows Port (Far Future)**: Support native Windows environments and package managers (Winget, Scoop, Chocolatey) alongside Linux/WSL.
 
+## [0.14.1] — 2026-11-23
+
+### Added
+- **Complete Short-Flag Parity**: Added short flag counterparts for every remaining CLI option, subcommand flag, and installer flag (`-r` for `--repair`, `-a` for `config export --all`, `-L`/`-C`/`-u`/`-a` for changelog selectors, `-p`/`-k`/`-n` for `uninstall`, and `-c`/`-C` for `bootstrap.sh`).
+
+### Changed
+- **Clearer README Examples**: Reorganized README documentation for plain-language clarity, pairing readable long flags with short shortcuts in Quick Start examples and fixing a minor README typo.
+
 ## [0.14.0] — 2026-11-23
 
 ### Added

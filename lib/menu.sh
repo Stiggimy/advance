@@ -26,11 +26,11 @@ config_export() {
             echo -e "  $(e $emoji)$name$grp_label"
         done
         echo ""
-        show_message "config_export_hint" "Run 'advance config export [name]' to print a manager config.\n   Run 'advance config export --all' to bundle all managers."
+        show_message "config_export_hint" "Run 'advance config export [name]' to print a manager config.\n   Run 'advance config export -a|--all' to bundle all managers."
         return 0
     fi
 
-    if [[ "$target" == "--all" ]]; then
+    if [[ "$target" == "--all" || "$target" == "-a" ]]; then
         if [[ ${#CUSTOM_NAMES[@]} -eq 0 ]]; then
             ui_error "No package managers configured."
             return 1
@@ -3323,7 +3323,7 @@ self_update() {
     local force_repair=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --repair) force_repair=true; shift ;;
+            -r|--repair) force_repair=true; shift ;;
             *) ui_error "Unknown self-update option: $1"; return 1 ;;
         esac
     done

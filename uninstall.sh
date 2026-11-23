@@ -11,10 +11,10 @@ main() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --purge) purge=true; shift ;;
-            --keep-config) keep_config=true; shift ;;
+            -p|--purge) purge=true; shift ;;
+            -k|--keep-config) keep_config=true; shift ;;
             -y|--yes) yes=true; shift ;;
-            --dry-run) dry_run=true; shift ;;
+            -n|--dry-run) dry_run=true; shift ;;
             -q|--quiet) quiet=true; shift ;;
             -h|--help)
                 cat <<'EOF'
@@ -25,12 +25,12 @@ Remove a per-user Advance installation from ~/.local.
 System packages and snapshots are never modified.
 
 Options:
-  --purge         Also remove configuration, custom managers, and state (~/.config/advance)
-  --keep-config   Keep configuration directory without prompting
-  -y, --yes       Skip confirmation prompts (preserves config unless --purge is passed)
-  --dry-run       Show what would be removed without making any changes
-  -q, --quiet     Suppress informational output
-  -h, --help      Display this help and exit
+  -p, --purge         Also remove configuration, custom managers, and state (~/.config/advance)
+  -k, --keep-config   Keep configuration directory without prompting
+  -y, --yes           Skip confirmation prompts (preserves config unless --purge is passed)
+  -n, --dry-run       Show what would be removed without making any changes
+  -q, --quiet         Suppress informational output
+  -h, --help          Display this help and exit
 EOF
                 return 0
                 ;;

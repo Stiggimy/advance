@@ -22,7 +22,7 @@ To install both **Advance and Checkpoint** together in one command:
 curl -fsSL https://raw.githubusercontent.com/Stiggimy/advance/master/bootstrap.sh | bash -s -- --with-checkpoint
 ```
 
-> **Tip:** Pass `--no-checkpoint` if you want to skip the interactive prompt to install Checkpoint.
+> **Tip:** Pass `--no-checkpoint` (`-C`) to skip the interactive prompt, or `-c` as the short form of `--with-checkpoint`.
 
 <details>
 <summary><strong>Other install methods (Inspect script first, Manual Git clone, Arch Linux PKGBUILD)</strong></summary>
@@ -54,44 +54,46 @@ This installs the binary to `/usr/bin/advance`, libraries to `/usr/lib/advance`,
 
 ## Quick Start & Examples
 
+> **Tip:** Every flag has both a readable long form and a fast short shortcut (shown in parentheses below) once you are comfortable with the commands.
+
 ### Everyday usage
 ```bash
 advance                 # Update everything (with pre/post snapshots if Checkpoint is installed)
-advance -ch             # Check for available updates only (no changes, no sudo)
-advance -ch -v          # Check for updates and list every upgradable package
+advance --check         # Check for available updates only, no sudo (short: -ch)
+advance --check --verbose  # Check for updates and list upgradable packages (short: -ch -v)
 advance config          # Open interactive settings and package manager menu
 advance schedule        # Set up automatic background updates (systemd timer)
-advance changelog       # Browse release notes interactively
+advance changelog       # Browse release notes interactively (short flag: -c)
 ```
 
-> **Note for Debian/Ubuntu (`apt`):** `advance -ch` displays **Always runs** because normal updates automatically refresh package lists before upgrading. The check-only package total counts only managers that report package lists.
+> **Note for Debian/Ubuntu (`apt`):** `advance --check` (`-ch`) displays **Always runs** because normal updates automatically refresh package lists before upgrading. The check-only package total counts only managers that report package lists.
 
 ### Run or skip specific package managers
 ```bash
-advance -o yay                   # Only run Yay
-advance -o yay -o pacman         # Force-run both Yay and Pacman together
-advance -og system               # Only run the preferred manager in the 'system' group
-advance -n yay                   # Skip Yay (uses the next tool in the group, e.g. Paru or Pacman)
-advance -ng flatpak              # Skip the entire Flatpak group
+advance --only yay                  # Only run Yay (short: -o yay)
+advance --only yay --only pacman    # Force-run both Yay and Pacman together (short: -o yay -o pacman)
+advance --only-group system         # Only run the preferred manager in 'system' (short: -og system)
+advance --no yay                    # Skip Yay and fall back to Paru/Pacman (short: -n yay)
+advance --no-group flatpak          # Skip the entire Flatpak group (short: -ng flatpak)
 ```
 
 ### Exclude packages, tweak flags, or handle slow commands
 ```bash
-advance -ex linux -ex nvidia        # Skip specific packages for this run
-advance -ef yay:--devel             # Pass an extra flag to a manager for this run
-advance -nef yay                    # Clear saved extra flags for a manager for this run
-advance -i                          # Ask for manual confirmation on every manager
-advance -st 3m                      # Alert if a command stalls with no output for 3 minutes
-advance -v                          # Show detailed debug output
+advance --exclude linux --exclude nvidia  # Skip specific packages for this run (short: -ex linux -ex nvidia)
+advance --extra-flag yay:--devel          # Pass an extra flag to a manager (short: -ef yay:--devel)
+advance --no-extra-flags yay              # Clear saved extra flags for a manager (short: -nef yay)
+advance --interactive                     # Ask for manual confirmation on every manager (short: -i)
+advance --stall-timeout 3m                # Alert if output stalls for 3 minutes (short: -st 3m)
+advance --verbose                         # Show detailed debug output (short: -v)
 ```
 
 ### Control backups (snapshots) on the fly
 ```bash
-advance -nprs -ns                   # Run updates without taking pre/post snapshots
-advance -ks                         # Protect the post-update snapshot from auto-cleanup ([KEEP])
-advance -k 10                       # Keep the last 10 normal snapshots for this cleanup run
-advance -oprs                       # Only create a pre-update snapshot and exit
-advance -ops                        # Only create a post-update snapshot and exit
+advance --no-pre-snapshot --no-snapshot   # Update without taking pre/post snapshots (short: -nprs -ns)
+advance --keep-snapshot                   # Protect post-update snapshot as [KEEP] (short: -ks)
+advance --keep 10                         # Keep the last 10 normal snapshots (short: -k 10)
+advance --only-pre-snapshot               # Only create a pre-update snapshot and exit (short: -oprs)
+advance --only-post-snapshot              # Only create a post-update snapshot and exit (short: -ops)
 ```
 
 ---
@@ -107,7 +109,7 @@ advance -ops                        # Only create a post-update snapshot and exi
   - `[O]verride` — Retry with conflict/force flags when configured
   - `[I]nteractive` — Switch to manual prompts so you can answer questions yourself
   - `[F]allback` — Switch to the backup manager in the same group
-  - `[E]dit` — Edit th command right in your terminal and run it
+  - `[E]dit` — Edit the command right in your terminal and run it
   - `[S]kip` — Skip this manager specifically
   - `[A]bort` — Stop the run completely
 - ⏱️ **Freeze detection:** Watches command output and rings an alert + desktop notification if an update hangs silently (`[W]ait`, `[T]erminate & Recover`, `[A]bort`).
@@ -121,18 +123,18 @@ advance -ops                        # Only create a post-update snapshot and exi
 
 ### Updating
 ```bash
-advance -U                     # Update Advance (and Checkpoint, if installed)
-advance self-update --repair   # Repair symlinks, libraries, or manual pages if needed
+advance --self-update             # Update Advance and Checkpoint (short: -U)
+advance self-update --repair      # Repair symlinks, libraries, or manual pages (short: -r)
 ```
 Public installations update using only `curl`/`wget` and `tar` — no `git` or `gh` needed.
 
 ### Uninstalling
 ```bash
-advance uninstall                # Remove Advance cleanly (prompts before touching your config)
-advance uninstall --dry-run      # Preview what would be removed without changing anything
-advance uninstall --keep-config  # Keep ~/.config/advance (custom managers & overrides)
-advance uninstall --purge        # Also remove ~/.config/advance and ~/.local/state/advance
-advance uninstall -y             # Skip confirmation prompts (still keeps config unless --purge)
+advance uninstall                 # Remove Advance cleanly (prompts before touching config)
+advance uninstall --dry-run       # Preview what would be removed (short: -n)
+advance uninstall --keep-config   # Keep ~/.config/advance without prompting (short: -k)
+advance uninstall --purge         # Also remove ~/.config/advance and state (short: -p)
+advance uninstall --yes           # Skip confirmation prompts (short: -y)
 ```
 System packages, snapshots, and any external repository folders are never touched. Disabled user auto-update timers (`advance-update.timer`) are removed automatically.
 
@@ -175,7 +177,7 @@ System packages, snapshots, and any external repository folders are never touche
 | `-st, --stall-timeout <dur>` | Freeze-detection timeout before prompting (e.g. `3m`, `180s`, `0` to disable) |
 | `-i, --interactive` | Force manual confirmation mode for all managers |
 | `-c, --changelog [ver]` | View release notes or open interactive release browser |
-| `-U, --self-update, --selfupdate` | Update Advance and Checkpoint (add `--repair` to repair installation) |
+| `-U, --self-update, --selfupdate` | Update Advance and Checkpoint (add `-r`/`--repair` to repair installation) |
 | `-v, --verbose, --debug` | Enable detailed debug logs |
 | `-V, --version` | Print version and build number, then exit |
 | `-h, --help` | Display usage and options summary |
@@ -184,13 +186,13 @@ System packages, snapshots, and any external repository folders are never touche
 | Command | Description |
 |---|---|
 | `advance config` | Interactive settings, flags, and priority hub (`Alt+Up`/`Alt+Down` to reorder) |
-| `advance config export [mgr\|--all]` | Export manager configurations |
+| `advance config export [mgr\|-a\|--all]` | Export manager configurations |
 | `advance config import <file\|url>` | Import manager configurations |
 | `advance catalog [list\|scan\|enroll\|remove]` | Browse, scan, enable, or disable official package manager recipes |
 | `advance schedule` | Set up background auto-update systemd timers |
-| `advance changelog [ver]` | Browse release history interactively or print a specific version |
-| `advance self-update [--repair]` | Update Advance and Checkpoint (or repair per-user install) |
-| `advance uninstall [OPTIONS]` | Remove per-user Advance installation |
+| `advance changelog [ver\|-L\|-C\|-u\|-a]` | Browse release history or show latest (`-L`), current (`-C`), upcoming (`-u`), or all (`-a`) |
+| `advance self-update [-r\|--repair]` | Update Advance and Checkpoint (or repair per-user install) |
+| `advance uninstall [-p\|-k\|-n\|-y\|-q]` | Remove per-user Advance installation (`--purge`, `--keep-config`, `--dry-run`, `--yes`, `--quiet`) |
 
 ---
 
